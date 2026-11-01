@@ -2,8 +2,7 @@
 
 ## 0.1.2
 
-- Removed the developer research tools (game code dump, debug-register watch, crash lab) from the public plugin.
-  They were off by default; players never need them. No change to the fixes.
+- Removed unused debug code. No changes to the fixes.
 
 ## 0.1.1
 
