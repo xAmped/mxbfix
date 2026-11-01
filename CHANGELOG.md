@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Crash reports no longer include riders' race numbers.
+- More reliable crash reports.
+
 ## 0.1.3
 
 - Cleaner log and settings file. No changes to the fixes.

@@ -99,7 +99,7 @@ Everything goes to `Documents\PiBoSo\MX Bikes\mxbfix\` and stays on your PC. Not
 | File | What's in it |
 |---|---|
 | `mxbfix.log` | This session: which fixes are active, track and bike loaded, bad rider positions, anything a fix caught. `mxbfix.prev.log` is the session before |
-| `reports\pending\*.json` | One per crash: where it crashed and why (for known crashes), call stack, loaded modules, what you were doing (track, bike, server name, session, number of riders, last telemetry, last game events) and your PC (Windows, CPU, RAM, GPU and driver, ReShade). No rider names, passwords or Windows user name |
+| `reports\pending\*.json` | One per crash: where it crashed and why (for known crashes), call stack, loaded modules, what you were doing (track, bike, server name, session, number of riders, last telemetry, last game events) and your PC (Windows, CPU, RAM, GPU and driver, ReShade). No rider names, race numbers, passwords or Windows user name |
 | `dumps\*.dmp` | A crash dump for each crash (the newest 10 are kept). Dumps are raw memory and aren't scrubbed: they can contain anything the game had loaded, so only share one if you're comfortable with that |
 | `bad_positions.log` | Every rider whose position went bad, with race number, the raw values and how long it lasted. Kept between sessions, up to 1 MB |
 | `stats.ini` | Running counts: crashes each fix prevented, bad positions seen |

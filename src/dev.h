@@ -30,8 +30,10 @@ static inline int  batches_gate_forced(void) { return 0; }
 uint8_t *test_target(const char *name);              /* stand-in address for a patch target, or NULL */
 int      test_protect_fail(const char *id, int nth); /* make the n-th VirtualProtect of a fix fail */
 void     test_paths(void);                           /* log how sample paths are written in reports */
+int      test_flag(const char *name);                /* MXBFIX_TEST_<name> is set */
 #else
 static inline uint8_t *test_target(const char *name) { (void)name; return NULL; }
 static inline int      test_protect_fail(const char *id, int nth) { (void)id; (void)nth; return 0; }
 static inline void     test_paths(void) {}
+static inline int      test_flag(const char *name) { (void)name; return 0; }
 #endif

@@ -233,7 +233,7 @@ EXPORT void RaceAddEntry(void *data, int size)
     if (data && size >= (int)sizeof(SPluginsRaceAddEntry_t)) {
         SPluginsRaceAddEntry_t *e = (SPluginsRaceAddEntry_t *)data;
         ctx_rider_add(e->m_iRaceNum, e->m_iUnactive);
-        ctx_event("RaceAddEntry", e->m_iRaceNum, e->m_iUnactive);
+        ctx_event("RaceAddEntry", 0, e->m_iUnactive);    /* no race number: events go into reports */
     }
 }
 
@@ -242,7 +242,7 @@ EXPORT void RaceRemoveEntry(void *data, int size)
     if (data && size >= (int)sizeof(SPluginsRaceRemoveEntry_t)) {
         int num = ((SPluginsRaceRemoveEntry_t *)data)->m_iRaceNum;
         ctx_rider_remove(num);
-        ctx_event("RaceRemoveEntry", num, 0);
+        ctx_event("RaceRemoveEntry", 0, 0);
     }
 }
 

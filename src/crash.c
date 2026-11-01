@@ -377,7 +377,7 @@ void crash_check_previous_session(void)
     }
     jw_end_obj(&w);
     write_env(&w);
-    write_fixes(&w);
+    /* No "fixes": this runs before this session's fixes load, and the previous session's state isn't known. */
     jw_end_obj(&w);
 
     wchar_t dir[MAX_PATH];
@@ -575,7 +575,9 @@ static struct {
     HANDLE              file;
     DWORD               tid;
     EXCEPTION_POINTERS *ep;
+    volatile LONG       ok;            /* MiniDumpWriteDump succeeded */
 } s_dump_job;
+static int s_test_dump_fail;            /* test harness: make the dump fail (developer build only) */
 
 static DWORD WINAPI dump_worker(LPVOID unused)
 {
@@ -584,8 +586,29 @@ static DWORD WINAPI dump_worker(LPVOID unused)
     MINIDUMP_TYPE t = (MINIDUMP_TYPE)(MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs |
                                       MiniDumpWithUnloadedModules | MiniDumpWithFullMemoryInfo |
                                       MiniDumpWithThreadInfo | MiniDumpWithHandleData);
-    s_minidump(GetCurrentProcess(), GetCurrentProcessId(), s_dump_job.file, t, &mei, NULL, NULL);
+    BOOL ok;
+    if (s_test_dump_fail) { DWORD wr; ok = FALSE; WriteFile(s_dump_job.file, "MDMP", 4, &wr, NULL); }   /* partial */
+    else ok = s_minidump(GetCurrentProcess(), GetCurrentProcessId(), s_dump_job.file, t, &mei, NULL, NULL);
     CloseHandle(s_dump_job.file);
+    s_dump_job.ok = ok ? 1 : 0;
+    return 0;
+}
+
+/* Turn `"dump_file":"<name>"` (with an optional leading comma) into `"dump_file":null` padded with spaces, in
+ * place, so the report keeps its length and stays valid JSON. Crash-safe. */
+static int null_dump_field(char *p, size_t n)
+{
+    static const char key[] = "\"dump_file\":";
+    size_t k = sizeof key - 1;
+    for (size_t i = 0; i + k + 4 <= n; i++) {
+        if (memcmp(p + i, key, k)) continue;
+        char *v = p + i + k;
+        size_t left = n - i - k;
+        if (left < 4 || v[0] != '"') return 0;
+        memcpy(v, "null", 4);
+        for (size_t j = 4; j < left; j++) v[j] = ' ';
+        return 1;
+    }
     return 0;
 }
 
@@ -859,12 +882,15 @@ static void write_crash_report(EXCEPTION_POINTERS *ep)
 
     char dumpname[128] = "";
     if (s_write_dumps && s_minidump) { lstrcpyA(dumpname, id); lstrcatA(dumpname, ".dmp"); }
+    size_t dump_at = w.len;                  /* where "dump_file" starts, to null it if the dump fails */
     jw_str(&w, "dump_file", dumpname[0] ? dumpname : NULL);
+    size_t dump_end = w.len;
     jw_bool(&w, "truncated", w.overflow);
     jw_end_obj(&w);
 
     /* Full report replaces the minimal one. If it overflowed, keep the minimal one. */
-    if (!w.overflow && write_file_atomic(dir, id, ".json", s_json, w.len)) mark_session_crashed(id);
+    int full_written = !w.overflow && write_file_atomic(dir, id, ".json", s_json, w.len);
+    if (full_written) mark_session_crashed(id);
 
     /* 3. Dump, on a worker thread with a time limit: MiniDumpWriteDump can deadlock in a damaged
      *    process (loader lock held by another thread). After the limit we move on so the previous
@@ -874,6 +900,7 @@ static void write_crash_report(EXCEPTION_POINTERS *ep)
         MultiByteToWideChar(CP_UTF8, 0, dumpname, -1, wname, 160);
         path_join(dpath, MAX_PATH, g_base_dir, L"dumps\\");
         path_join(dpath, MAX_PATH, dpath, wname);
+        s_dump_job.ok = 0;
         s_dump_job.file = CreateFileW(dpath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (s_dump_job.file != INVALID_HANDLE_VALUE) {
             s_dump_job.tid = GetCurrentThreadId();
@@ -885,6 +912,13 @@ static void write_crash_report(EXCEPTION_POINTERS *ep)
             } else {
                 CloseHandle(s_dump_job.file);
             }
+        }
+        /* No usable dump (couldn't create, couldn't start, or MiniDumpWriteDump failed): delete what's there and
+         * make the report say there's no dump. A stuck dump is still being written, so it's left alone. */
+        if (!s_dump_stuck && !s_dump_job.ok) {
+            DeleteFileW(dpath);
+            if (full_written && null_dump_field(s_json + dump_at, dump_end - dump_at))
+                write_file_atomic(dir, id, ".json", s_json, w.len);
         }
     }
 }
@@ -926,6 +960,7 @@ void crash_install(void)
     HMODULE dbg = LoadLibraryW(L"dbghelp.dll");
     s_minidump = dbg ? (MiniDumpWriteDump_t)(void *)GetProcAddress(dbg, "MiniDumpWriteDump") : NULL;
     s_write_dumps = cfg_int("capture", "write_dumps", 1);
+    s_test_dump_fail = test_flag("DUMP_FAIL");
 
     ULONG guarantee = 64 * 1024;          /* stack kept free for exception handling on the game thread */
     SetThreadStackGuarantee(&guarantee);
