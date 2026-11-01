@@ -35,6 +35,8 @@ Some antivirus programs may flag it, because it changes the game's code in memor
 | Physics crash | While racing | A rider's broken (NaN) position made the game read far outside the map |
 | Cancel crash | Cancelling a server join after riding offline | The game cleaned up your trainer twice |
 
+What's planned next: [ROADMAP.md](ROADMAP.md).
+
 ## Settings
 
 `Documents\PiBoSo\MX Bikes\mxbfix\mxbfix.ini` is created the first time. To turn a fix off:
