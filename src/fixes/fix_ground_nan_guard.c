@@ -1,6 +1,6 @@
 /*
  * Fix: ground-nan-guard
- * Crash: docs/crashes/physics-contact-nan.md (mxbikes.exe+0x1f1923, ~17% of community crash reports)
+ * Crash: mxbikes.exe+0x1f1923 while racing (~17% of community crash reports)
  *
  * Bug: three terrain lookups test "is this point outside the map" with
  * `comiss min, x` + `ja exit` (exit if min > x), and the same for the far
@@ -10,7 +10,7 @@
  *              lands gigabytes away (the crash at +0x1f1923);
  *   +0x1f11a0  triangle box tree: a NaN visits every box and the triangle test
  *              records false hits, so the ground and track queries report
- *              "found" with NaN results (shown by an outside review, step 1d);
+ *              "found" with NaN results;
  *   +0x1f1d10  surface lookup: same checks, same kind of bad grid index; two
  *              callers reach it without going through the height lookup.
  * The NaN comes from other riders' positions holding junk bytes, or from the
@@ -35,6 +35,7 @@
  * bad instead, which is the evidence it worked.
  */
 #include "../fixes.h"
+#include "../dev.h"
 #include "../context.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,7 +83,7 @@ static const site_t SITES[] = {
 };
 #define NSITES ((int)(sizeof SITES / sizeof SITES[0]))
 
-/* Base of the image to patch and read: the game, or a stand-in copy loaded by tools/testhost.
+/* Base of the image to patch and read: the game (or the test harness's stand-in in the developer build).
  * Looked up once (the scan below runs every frame). */
 static uint8_t *image_base(void)
 {
@@ -90,10 +91,8 @@ static uint8_t *image_base(void)
     static int s_done;
     if (s_done) return s_cached;
     s_done = 1;
-    char env[32];
-    if (env_get("MXBFIX_TEST_GAME_IMAGE", env, sizeof env))
-        s_cached = (uint8_t *)(uintptr_t)strtoull(env, NULL, 16);
-    else if (g_game_build == GNG_BUILD)
+    s_cached = test_target("GAME_IMAGE");
+    if (!s_cached && g_game_build == GNG_BUILD)
         s_cached = g_game_base;
     return s_cached;
 }

@@ -1,5 +1,5 @@
 /*
- * Fix framework. Read docs/FIXES.md before adding a fix.
+ * Fix framework.
  *
  * A fix is one file in src/fixes/ that defines a fix_t and is listed in
  * fixes.c. A fix can do either or both of:
@@ -8,7 +8,7 @@
  *                     the game can carry on (called from a first-chance vectored
  *                     exception handler, before any other handler sees the fault)
  *
- * Rules (enforced by review, see docs/FIXES.md):
+ * Rules:
  *   - Only act on a fault you can identify exactly: module, game build or code
  *     bytes, and the register state you expect. Otherwise return 0.
  *   - on_exception runs inside an exception: no heap, no locks, no logging.
@@ -21,7 +21,7 @@ typedef struct fix fix_t;
 struct fix {
     const char *id;                 /* stable id; also the [fixes] key in mxbfix.ini */
     const char *title;              /* one line, player-facing */
-    const char *crash_id;           /* docs/crashes/<crash_id>.md this fix addresses */
+    const char *crash_id;           /* the known crash (known.h id) this fix addresses */
     int  (*install)(fix_t *self);   /* optional; return 1 if the fix is active */
     int  (*on_exception)(fix_t *self, EXCEPTION_POINTERS *ep);  /* optional; 1 = recovered */
     /* runtime state */
@@ -58,7 +58,7 @@ typedef struct {
 } fix_span_t;
 int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *spans, int n);
 
-/* Original bytes of everything patched this session, so research image dumps can save the game's own code. */
+/* Original bytes of everything patched this session: puts them back into a copy of game memory. */
 void fix_restore_originals(uint8_t *copy, uint64_t copy_base, size_t copy_len);
 
 /* fixes/fix_trainer_series_lookup.c: log whether the loaded trainer's series name is junk */
@@ -71,5 +71,3 @@ void ground_watch_summary(void);
 /* fixes/fix_trainer_cleanup_reset.c: at Event Deinit (just before the trainer cleanup), log what it will do */
 void trainer_cleanup_note(void);
 
-/* Custom exception code raised by tools/testhost to exercise the recovery path. */
-#define MXBFIX_SELFTEST_CODE 0xE0F1C5EDu

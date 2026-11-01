@@ -1,13 +1,12 @@
 /*
- * Crash capture. See docs/ARCHITECTURE.md ("Crash capture") and
- * docs/REPORT_FORMAT.md for what ends up in a report.
+ * Crash capture: unhandled-exception filter, JSON report, minidump, unclean-exit detection.
  */
 #pragma once
 #include "common.h"
 
 void crash_install(void);               /* vectored handler (fixes) + unhandled filter (reports) */
 void crash_uninstall(void);
-int  crash_veh_active(void);           /* research code that raises private exceptions needs this */
+int  crash_veh_active(void);           /* our vectored handler is installed */
 
 /* session.lock tracks whether the game exited cleanly. */
 void crash_check_previous_session(void);   /* call before crash_session_begin() */

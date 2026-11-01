@@ -157,27 +157,6 @@ void jw_path(jw_t *w, const char *key, const wchar_t *path)
     jw_wstr(w, key, tmp);
 }
 
-/* Test hook (tools/testhost "privacy"): MXBFIX_TEST_PATHS="a|b|..." logs how each path is written in reports. */
-void jw_path_selftest(void)
-{
-    wchar_t list[2048];
-    DWORD ln = GetEnvironmentVariableW(L"MXBFIX_TEST_PATHS", list, 2048);
-    if (ln == 0 || ln >= 2048) return;
-    wchar_t *p = list;
-    while (p && *p) {
-        wchar_t *bar = wcschr(p, L'|');
-        if (bar) *bar = 0;
-        char buf[1024];
-        jw_t w;
-        jw_init(&w, buf, sizeof buf);
-        jw_obj(&w, NULL);
-        jw_path(&w, "p", p);
-        jw_end_obj(&w);
-        log_msg("path test: %.*s", (int)w.len, buf);
-        p = bar ? bar + 1 : NULL;
-    }
-}
-
 void jw_u64(jw_t *w, const char *key, uint64_t v)
 {
     char t[24];

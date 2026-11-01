@@ -1,6 +1,6 @@
 /*
  * Fix: trainer-series-lookup
- * Crash: docs/crashes/trainer-bad-string.md (msvcr90.dll+0x36ede while a track loads)
+ * Crash: msvcr90.dll+0x36ede while a track loads (damaged trainer file)
  *
  * Bug: a trainer file (.trn) is read straight into the game's trainer record, so
  * whatever the file holds at offset 0x82 becomes the record's "series name"
@@ -21,6 +21,7 @@
  * (the original left rsi pointing at the name; the patch leaves it unchanged).
  */
 #include "../fixes.h"
+#include "../dev.h"
 #include <stdlib.h>
 
 #define TRN_BUILD 0x6A21833Du
@@ -54,12 +55,11 @@ static const uint8_t PATCH[TRN_LEN] = {
     0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00,     /* 8-byte nop                 */
 };
 
-/* Patch target: the game, or a stand-in image laid out at the same offsets by tools/testhost. */
+/* Patch target: the game (or the test harness's stand-in in the developer build). */
 static uint8_t *target(void)
 {
-    char env[32];
-    if (env_get("MXBFIX_TEST_TRAINER_BASE", env, sizeof env))
-        return (uint8_t *)(uintptr_t)strtoull(env, NULL, 16) + TRN_RVA;
+    uint8_t *test = test_target("TRAINER_BASE");
+    if (test) return test + TRN_RVA;
     if (g_game_build != TRN_BUILD) return NULL;
     return g_game_base + TRN_RVA;
 }

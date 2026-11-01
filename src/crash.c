@@ -20,7 +20,8 @@
 #include "fixes.h"
 #include "json.h"
 #include "known.h"
-#include "research.h"
+#include "batches.h"
+#include "dev.h"
 #include <psapi.h>
 #include <dbghelp.h>
 #include <winevt.h>
@@ -909,7 +910,9 @@ static LONG CALLBACK vectored_handler(EXCEPTION_POINTERS *ep)
     case EXCEPTION_ILLEGAL_INSTRUCTION:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
+#ifdef MXBFIX_TESTHOOKS
     case MXBFIX_SELFTEST_CODE:
+#endif
         return fixes_dispatch(ep);
     default:
         return EXCEPTION_CONTINUE_SEARCH;

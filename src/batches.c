@@ -1,6 +1,5 @@
 /*
- * Research: the render batch objects behind the gate crash
- * (docs/crashes/render-vertex-fill-truncation.md).
+ * The render batch objects behind the gate crash (mxbikes.exe+0x24085c).
  *
  * Build 0x6A21833D keeps pointers to batch objects in a table at
  * mxbikes.exe+0x5815a0. Each object holds its vertex count at +0x00, a vertex
@@ -11,15 +10,12 @@
  * batches_log() logs each batch's buffer pointer and whether it is real memory, at
  * startup and on every event/run change (only when it changed). batches_write_json()
  * puts the same snapshot into crash reports. batches_poll_activity() counts the gate
- * fix's saves. Read-only. (The write watch and crash lab are developer-only tools,
- * not part of the public release.)
- *
- * Testing: tools/testhost sets MXBFIX_TEST_BATCH_TABLE to a fake table so this
- * runs outside the game.
+ * fix's saves. Read-only.
  */
 #include "common.h"
 #include "json.h"
-#include "research.h"
+#include "batches.h"
+#include "dev.h"
 #include "context.h"
 #include <stdlib.h>
 
@@ -63,38 +59,19 @@ const char *batches_mem_state(uint64_t a)
 
 void batches_init(void)
 {
-    char env[32];
-    s_table = 0;
-    if (env_get("MXBFIX_TEST_BATCH_TABLE", env, sizeof env))
-        s_table = strtoull(env, NULL, 16);
-    else if (g_game_build == BUILD_WITH_TABLE)
+    s_table = (uint64_t)(uintptr_t)test_target("BATCH_TABLE");
+    if (!s_table && g_game_build == BUILD_WITH_TABLE)
         s_table = (uint64_t)g_game_base + TABLE_RVA;
-    log_msg("batch research: %s", s_table ? "table found" : "not available for this game build");
+    log_msg("render batch check: %s", s_table ? "on" : "not available for this game version");
 }
 
 uint64_t batches_table(void) { return s_table; }
 void     batches_forget(int i) { if (i >= 0 && i < MAX_BATCHES) s_last_client[i] = 0; }
 void     batches_run_init(void) { s_activity_logged = 0; }
 
-static void log_helper_state(const char *when)
-{
-    if (g_game_build != BUILD_WITH_TABLE) return;
-    uint32_t flag = 0;
-    uint8_t code[16], tail[8];
-    safe_read(g_game_base + 0x57CC04, &flag, 4);
-    safe_read(g_game_base + 0x22AC50, code, 16);
-    safe_read(g_game_base + 0x22ACB1, tail, 8);
-    char hx[64], hx2[24];
-    for (int i = 0; i < 16; i++) wsprintfA(hx + 2 * i, "%02x", code[i]);
-    for (int i = 0; i < 8; i++) wsprintfA(hx2 + 2 * i, "%02x", tail[i]);
-    log_msg("buffer helper at %s: map-path flag=%u, code +0x22ac50=%s (expect 4883ec28833dd19b350000750733c0), +0x22acb1=%s (expect 488b41104883c428)",
-            when, flag, hx, hx2);
-}
-
 void batches_log(const char *when)
 {
     if (!s_table) return;
-    if (!strcmp(when, "startup") || !strcmp(when, "on track")) log_helper_state(when);
     for (int i = 0; i < MAX_BATCHES; i++) {
         batch_t b;
         if (!batches_read(i, &b) || b.client == s_last_client[i]) continue;
@@ -140,6 +117,6 @@ void batches_poll_activity(void)
     int risky = gate_fix_is_risky(b.client, b.gpu_buffer);
     log_msg("batch 0 became active: %d vertices written (on-track time %.1fs)%s", b.written, (double)g_ctx.on_track_time,
             risky ? ", in the risky state" : ", not in the risky state (would not crash)");
-    /* Count only real prevented crashes: risky state + first draw, and never forced by the crash lab. */
+    /* Count only real prevented crashes: risky state + first draw, never a forced test state. */
     if (risky && !batches_gate_forced()) gate_fix_record_save(b.client);
 }

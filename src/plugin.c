@@ -10,7 +10,8 @@
 #include "crash.h"
 #include "fixes.h"
 #include "mxb_api.h"
-#include "research.h"
+#include "batches.h"
+#include "dev.h"
 
 #define EXPORT __declspec(dllexport)
 
@@ -45,7 +46,7 @@ EXPORT int Startup(char *save_path)
     cfg_init();
     util_init_game_identity();
     log_msg("mxbfix %s starting, game build 0x%08X, image %u bytes", MXBFIX_VERSION, g_game_build, g_game_size);
-    jw_path_selftest();              /* test hook; does nothing unless tools/testhost asks */
+    test_paths();                    /* developer build only */
 
     env_collect_startup();
     crash_check_previous_session();
@@ -54,7 +55,7 @@ EXPORT int Startup(char *save_path)
     fixes_init();
     crash_cleanup_old_dumps();
     batches_init();
-    research_start();                /* developer build only; nothing in the public build */
+    research_start();                /* developer build only */
     batches_log("startup");
     batches_watch_arm();
 

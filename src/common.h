@@ -1,5 +1,5 @@
 /*
- * Shared declarations for mxbfix. See docs/ARCHITECTURE.md for how the pieces fit.
+ * Shared declarations for mxbfix.
  */
 #pragma once
 
@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#define MXBFIX_VERSION "0.1.2"
+#define MXBFIX_VERSION "0.1.3"
 
 /* ---- global paths and game identity (util.c) ---- */
 extern wchar_t  g_save_dir[MAX_PATH];     /* the game's save path, Documents\PiBoSo\MX Bikes\ (trailing backslash) */

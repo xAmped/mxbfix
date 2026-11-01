@@ -1,6 +1,6 @@
 /*
  * Fix: trainer-cleanup-reset
- * Crash: docs/crashes/session-teardown-null.md (mxbikes.exe+0x11d753, ~7% of community crash reports)
+ * Crash: mxbikes.exe+0x11d753, cancelling a server join after riding offline (~7% of community crash reports)
  *
  * Bug: unloading an event (+0x71d50, the game's command 44) runs the trainer
  * (ghost) cleanup +0x21500. It runs only while the "trainer loaded" flag
@@ -19,7 +19,7 @@
  *     do. Every other reader of the flag uses it as "trainer loaded? else skip",
  *     and the trainer save (+0x21010) runs before the cleanup, so saving is
  *     unchanged. This also stops a stale cleanup from destroying a different,
- *     live object after the table reuses an entry (shown by the outside review).
+ *     live object after the table reuses an entry.
  *  2. +0x11d74f (30 bytes): safety net in "destroy object n": if the entry is
  *     already empty, skip the two frees (`jrcxz`) and store 0 as before.
  * Checked against the game image: both decode as intended, nothing branches
@@ -30,6 +30,7 @@
  * logs when an unpatched game would crash, and when the fix very likely saved one.
  */
 #include "../fixes.h"
+#include "../dev.h"
 #include <stdlib.h>
 
 #define TCR_BUILD 0x6A21833Du
@@ -74,17 +75,15 @@ static const tcr_site_t SITES[] = {
 };
 #define NSITES ((int)(sizeof SITES / sizeof SITES[0]))
 
-/* The game, or a stand-in copy of its image loaded by tools/testhost. Looked up once. */
+/* The game (or the test harness's stand-in in the developer build). Looked up once. */
 static uint8_t *image_base(void)
 {
     static uint8_t *s_cached;
     static int s_done;
     if (s_done) return s_cached;
     s_done = 1;
-    char env[32];
-    if (env_get("MXBFIX_TEST_GAME_IMAGE", env, sizeof env))
-        s_cached = (uint8_t *)(uintptr_t)strtoull(env, NULL, 16);
-    else if (g_game_build == TCR_BUILD)
+    s_cached = test_target("GAME_IMAGE");
+    if (!s_cached && g_game_build == TCR_BUILD)
         s_cached = g_game_base;
     return s_cached;
 }

@@ -27,7 +27,6 @@ void jw_str(jw_t *w, const char *key, const char *utf8);
 void jw_strn(jw_t *w, const char *key, const char *utf8, size_t max);
 void jw_wstr(jw_t *w, const char *key, const wchar_t *s);
 void jw_path(jw_t *w, const char *key, const wchar_t *path);   /* scrubs the user profile */
-void jw_path_selftest(void);                                     /* test hook: MXBFIX_TEST_PATHS */
 void jw_u64(jw_t *w, const char *key, uint64_t v);
 void jw_i64(jw_t *w, const char *key, int64_t v);
 void jw_hex(jw_t *w, const char *key, uint64_t v);           /* "0x1a2b" as a string */

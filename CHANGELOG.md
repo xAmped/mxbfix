@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- Cleaner log and settings file. No changes to the fixes.
+
 ## 0.1.2
 
 - Removed unused debug code. No changes to the fixes.
@@ -7,7 +11,6 @@
 ## 0.1.1
 
 - `trainer-repair` keeps a legitimate series name up to 31 characters (0.1.0 could cut names longer than 15).
-- README: clearer about what's verified, what files change and what crash dumps contain.
 
 ## 0.1.0
 

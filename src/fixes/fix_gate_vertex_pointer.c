@@ -1,6 +1,6 @@
 /*
  * Fix: gate-vertex-pointer
- * Crash: docs/crashes/render-vertex-fill-truncation.md (mxbikes.exe+0x24085c)
+ * Crash: mxbikes.exe+0x24085c, a few seconds after riding out of the pits
  *
  * Bug: when a render batch has no GPU buffer (its glBufferData step reported a
  * GL error, so the game fell back to client memory), the batch's four array
@@ -20,6 +20,7 @@
  * build and every original byte match.
  */
 #include "../fixes.h"
+#include "../dev.h"
 #include <stdlib.h>
 
 #define GATE_BUILD 0x6A21833Du
@@ -65,12 +66,11 @@ static const uint8_t PATCH[GATE_LEN] = {
     0x0f, 0x1f, 0x00,                                       /* 3-byte nop             */
 };
 
-/* Patch target: the game, or a stand-in block from tools/testhost. */
+/* Patch target: the game (or the test harness's stand-in in the developer build). */
 static uint8_t *target(void)
 {
-    char env[32];
-    if (env_get("MXBFIX_TEST_GATE_CODE", env, sizeof env))
-        return (uint8_t *)(uintptr_t)strtoull(env, NULL, 16);
+    uint8_t *test = test_target("GATE_CODE");
+    if (test) return test;
     if (g_game_build != GATE_BUILD) return NULL;
     return g_game_base + GATE_RVA;
 }
@@ -81,7 +81,7 @@ static int install(fix_t *self)
 }
 
 /*
- * Prevented-crash accounting, driven by research_batches.c (game thread only):
+ * Prevented-crash accounting, driven by batches.c (game thread only):
  *  - gate_fix_is_risky(): a batch with no GPU buffer and client memory above 4 GB.
  *    That alone is a near miss: nothing crashes until the batch draws.
  *  - gate_fix_record_save(): called once when a risky batch 0 actually draws

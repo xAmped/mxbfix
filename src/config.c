@@ -1,6 +1,6 @@
 /*
  * Settings file: <save path>\mxbfix\mxbfix.ini. Created with defaults on first run.
- * Every key is documented in docs/CONFIG.md.
+ * The player-facing keys are listed in the README.
  */
 #include "common.h"
 
@@ -8,7 +8,7 @@ static wchar_t s_ini[MAX_PATH];
 
 static const char DEFAULT_INI[] =
     "; mxbfix settings. Delete this file to restore defaults.\r\n"
-    "; Full reference: docs/CONFIG.md in the mxbikes-bugfix repository.\r\n"
+    "; All settings: https://github.com/xAmped/mxbfix#settings\r\n"
     "\r\n"
     "[capture]\r\n"
     "; Write a crash dump (.dmp) for each crash, in the dumps folder. 1 = on, 0 = off.\r\n"

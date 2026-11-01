@@ -3,17 +3,23 @@
 #include <wchar.h>
 #include <stdlib.h>
 #include <string.h>
+#include "dev.h"
 
-/* ---- registry: add new fixes here (and document them in docs/FIXES.md) ---- */
-extern fix_t fix_selftest;
+/* ---- registry: add new fixes here ---- */
 extern fix_t fix_gate_vertex_pointer;
 extern fix_t fix_trainer_series_lookup;
 extern fix_t fix_trainer_repair;
 extern fix_t fix_ground_nan_guard;
 extern fix_t fix_trainer_cleanup_reset;
 
+#ifdef MXBFIX_TESTHOOKS
+extern fix_t fix_selftest;                 /* test-only, developer build */
+#endif
+
 static fix_t *ALL[] = {
+#ifdef MXBFIX_TESTHOOKS
     &fix_selftest,
+#endif
     &fix_gate_vertex_pointer,
     &fix_trainer_series_lookup,
     &fix_trainer_repair,
@@ -91,17 +97,6 @@ void fix_restore_originals(uint8_t *copy, uint64_t copy_base, size_t copy_len)
     }
 }
 
-/* Test hook: MXBFIX_TEST_PROTECT_FAIL=<fix id>:<n> makes the n-th VirtualProtect of that fix fail. */
-static int protect_should_fail(const char *id, int nth)
-{
-    char env[96];
-    if (!env_get("MXBFIX_TEST_PROTECT_FAIL", env, sizeof env)) return 0;
-    char *colon = strrchr(env, ':');
-    if (!colon) return 0;
-    *colon = 0;
-    return !strcmp(env, id) && atoi(colon + 1) == nth;
-}
-
 int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *sp, int n)
 {
     enum { MAXS = 16 };
@@ -126,7 +121,7 @@ int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *sp, int n
         return 0;
     }
     for (int i = 0; i < n; i++) {                                /* 2. make every span writable */
-        if (protect_should_fail(id, i + 1) || !VirtualProtect(base + sp[i].rva, sp[i].len, PAGE_EXECUTE_READWRITE, &old[i])) {
+        if (test_protect_fail(id, i + 1) || !VirtualProtect(base + sp[i].rva, sp[i].len, PAGE_EXECUTE_READWRITE, &old[i])) {
             DWORD err = GetLastError(), tmp;
             /* Undo in reverse: spans can share a page, and a later span's "old" protection is the earlier
              * span's writable one; only unwinding backwards ends at the true original. */

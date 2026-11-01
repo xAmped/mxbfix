@@ -1,6 +1,6 @@
 /*
  * Fix: trainer-repair
- * Crash: docs/crashes/trainer-bad-string.md
+ * Crash: msvcr90.dll+0x36ede while a track loads (damaged trainer file)
  *
  * Defence in depth next to trainer-series-lookup, and the only protection on
  * game builds where that patch doesn't apply. At startup, before any track
@@ -18,10 +18,7 @@
  *    (non-printable bytes, or no terminator) is cleared. Bytes from 0x92 on are
  *    never changed (junk after an empty name there is harmless). Every damaged
  *    file seen so far has non-printable junk at 0x82, and on this game build an
- *    unknown name is handled by trainer-series-lookup anyway. (A 16-byte field
- *    was assumed until an outside review, 2026-11-01, showed long names would be
- *    cut.) (Earlier versions zeroed the whole range like mxbmrp3's
- *    tools/trnfix, which also erased legitimate series names; found in review.)
+ *    unknown name is handled by trainer-series-lookup anyway.
  *  - if anything changes, the original is backed up once to
  *    <save>\mxbfix\backups\trainers\<profile>\<file> first (written to a temp
  *    file and renamed into place, so a backup is never partial). An existing
