@@ -1,0 +1,4 @@
+dist/
+*.dlo
+*.lib
+*.pdb
