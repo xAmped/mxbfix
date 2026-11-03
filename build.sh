@@ -10,6 +10,6 @@ mkdir -p dist
   -std=c11 -Wall -Wextra -Wno-unused-parameter -Wno-cast-function-type -Wno-missing-field-initializers \
   -fno-sanitize=undefined \
   -o dist/mxbfix.dlo src/*.c src/fixes/*.c \
-  -lkernel32 -luser32 -ladvapi32 -lversion -lwevtapi
+  -lkernel32 -luser32 -ladvapi32 -lversion -lwevtapi -lwinhttp -lshell32 -lbcrypt
 rm -f dist/*.lib dist/*.pdb
 echo "built dist/mxbfix.dlo"

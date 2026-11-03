@@ -12,6 +12,9 @@
 #include "mxb_api.h"
 #include "batches.h"
 #include "dev.h"
+#include "ui.h"
+#include "update.h"
+#include "upload.h"
 
 #define EXPORT __declspec(dllexport)
 
@@ -67,6 +70,8 @@ EXPORT void Shutdown(void)
 {
     ctx_event("Shutdown", 0, 0);
     research_stop();
+    update_stop();
+    upload_stop();
     fixes_poll();
     ground_watch_summary();
     batches_watch_poll();
@@ -204,6 +209,20 @@ EXPORT void RunTelemetry(void *data, int size, float time, float pos)
 
 /* Called by the game every frame with every rider's track position while a session runs (also while
  * spectating or in the pits). Used only as a heartbeat for the bad-position log; the data is ignored. */
+EXPORT int DrawInit(int *num_sprites, char **sprite_names, int *num_fonts, char **font_names)
+{
+    return ui_draw_init(num_sprites, sprite_names, num_fonts, font_names);
+}
+
+EXPORT void Draw(int state, int *num_quads, void **quads, int *num_strings, void **strings)
+{
+    if (num_quads) *num_quads = 0;
+    if (quads) *quads = NULL;
+    if (num_strings) *num_strings = 0;
+    if (strings) *strings = NULL;
+    ui_draw(state, num_quads, quads, num_strings, strings);
+}
+
 EXPORT void RaceTrackPosition(int num_vehicles, void *data, int size)
 {
     (void)num_vehicles;

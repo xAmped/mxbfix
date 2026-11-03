@@ -155,5 +155,6 @@ void trainer_cleanup_note(void)
          * unless one of its own reset paths cleared it, hence "very likely". */
         log_msg("trainer cleanup skipped: no trainer loaded since the last cleanup and object %d is gone; an unpatched game would very likely crash here (trainer-cleanup-reset covers it)", n);
         s_cleanup_ran = 0;           /* once per episode: an unpatched game would have crashed at this first one */
+        InterlockedIncrement(&fix_trainer_cleanup_reset.saves);
     }
 }

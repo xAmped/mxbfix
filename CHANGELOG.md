@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+- Added an in-game page in the pause menu: update status, crashes prevented and each fix.
+- Install updates from the game with one click. Updates are signed.
+- Added crash reports and daily crash counts, which help find new crashes. You choose during a short setup and can turn them off anytime.
+
 ## 0.1.5
 
 - Better logging of bad rider positions. No changes to the fixes.

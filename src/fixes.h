@@ -36,6 +36,8 @@ void   fixes_init(void);
 LONG   fixes_dispatch(EXCEPTION_POINTERS *ep);   /* called by the vectored handler */
 void   fixes_poll(void);                         /* game thread: log new saves, persist stats */
 int    fixes_count(void);
+void     ground_watch_saves(unsigned *total, unsigned *session);  /* fixes/fix_ground_nan_guard.c: crash values handled */
+unsigned trainer_repairs_total(void);                             /* fixes/fix_trainer_repair.c: files repaired, lifetime */
 fix_t *fixes_get(int i);
 
 /* Helpers for fixes */

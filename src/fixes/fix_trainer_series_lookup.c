@@ -84,6 +84,12 @@ void trainer_fix_note(const char *when)
     for (int i = 0; i < (int)sizeof name && name[i]; i++) if (name[i] < 32 || name[i] > 126) printable = 0;
     char hx[40];
     for (int i = 0; i < 8; i++) wsprintfA(hx + 2 * i, "%02x", name[i]);
+    /* Junk here crashes an unpatched game on this load, so it's a crash prevented. Counted once per junk value. */
+    static uint8_t s_counted[16];
+    if (!printable && fix_trainer_series_lookup.active && memcmp(s_counted, name, sizeof name)) {
+        memcpy(s_counted, name, sizeof name);
+        InterlockedIncrement(&fix_trainer_series_lookup.saves);
+    }
     log_msg("trainer record at %s: series-name field is %s (%s): %s", when, printable ? "a name" : "JUNK", hx,
             fix_trainer_series_lookup.active ? "handled by trainer-series-lookup" : "unpatched game may crash on this");
 }

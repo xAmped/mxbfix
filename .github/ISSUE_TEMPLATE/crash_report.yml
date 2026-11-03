@@ -1,0 +1,24 @@
+name: Crash report
+description: The game crashed with mxbfix installed
+labels: ["crash"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If "Send crash reports and crash counts" is on, the report reaches us by itself on your next game start, so you don't need to file this.
+
+        Please don't attach `.dmp` files. They're raw memory and can contain private information.
+  - type: textarea
+    id: what
+    attributes:
+      label: What were you doing?
+      placeholder: e.g. riding out of the pits, loading a track, joining a server
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Crash report
+      description: "Drag in the newest `.json` from `Documents\\PiBoSo\\MX Bikes\\mxbfix\\reports\\pending\\`"
+    validations:
+      required: true

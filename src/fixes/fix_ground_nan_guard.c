@@ -167,6 +167,7 @@ static void record(const char *msg)
 /* Lifetime counts in stats.ini. Added in memory and written in batches, so a flickering position can't cause
  * a file write every frame: written right away while under the log cap, the rest at shutdown. */
 static unsigned s_pending_total, s_pending_crash;
+static unsigned s_crash_base, s_crash_session;
 
 static void flush_counts(void)
 {
@@ -196,6 +197,8 @@ void ground_watch_poll(void)
         uint32_t last = SLOT_TABLE + (SLOT_COUNT - 1) * SLOT_SIZE + 0x50f4;
         s_watch = base && cfg_int("capture", "log_bad_positions", 1) && safe_read(base + SLOT_TABLE, &probe, 4) &&
                   safe_read(base + last, &probe, 4) && safe_read(base + LOCAL_SLOT1, &probe, 4) ? 1 : 0;
+        wchar_t ini[MAX_PATH];
+        if (path_join(ini, MAX_PATH, g_base_dir, L"stats.ini")) s_crash_base = GetPrivateProfileIntW(L"bad_positions", L"would_crash", 0, ini);
     }
     if (!s_watch) return;
     uint8_t *base = image_base();
@@ -215,7 +218,7 @@ void ground_watch_poll(void)
             s_episodes++;
             int crashes = f_nan(pos[0]) || f_nan(pos[2]);       /* x or z NaN: what reaches +0x1f1923 unguarded */
             s_pending_total++;
-            if (crashes) s_pending_crash++;
+            if (crashes) { s_pending_crash++; if (fix_ground_nan_guard.active) s_crash_session++; }
             /* Ordinary episodes stop being listed at the cap (one flickering rider can make thousands); crash values
              * keep their own allowance, because they're the rare events worth a timestamp. Both are bounded. */
             int over = s_lines >= LOG_CAP;
@@ -255,6 +258,12 @@ void ground_watch_poll(void)
         int lrace = ls >= 0 && ls < SLOT_COUNT ? (int)rd32(base + SLOT_TABLE + (uint32_t)ls * SLOT_SIZE + 0xc) : -1;
         log_msg("bad-position check running: %d rider(s) in use, you are slot %d (race %d)", in_use_count, ls, lrace);
     }
+}
+
+void ground_watch_saves(unsigned *total, unsigned *session)
+{
+    *total = s_crash_base + s_crash_session;
+    *session = s_crash_session;
 }
 
 void ground_watch_summary(void)

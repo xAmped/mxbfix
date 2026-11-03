@@ -107,6 +107,9 @@ static int write_backup(const wchar_t *backup, const uint8_t *data, DWORD len)
     return 1;
 }
 
+static unsigned s_repairs_total;
+unsigned trainer_repairs_total(void) { return s_repairs_total; }
+
 /* 1 = repaired, 0 = fine or left alone, -1 = needed repair but couldn't do it safely */
 static int check_file(const wchar_t *path, const wchar_t *backup_dir, const wchar_t *name)
 {
@@ -198,6 +201,14 @@ static int install(fix_t *self)
         FindClose(ph);
     }
     log_msg("fix %s: %d trainer file(s) checked, %d repaired, %d could not be repaired", self->id, checked, repaired, failed);
+    wchar_t ini[MAX_PATH], val[24];
+    if (path_join(ini, MAX_PATH, g_base_dir, L"stats.ini")) {
+        s_repairs_total = GetPrivateProfileIntW(L"repairs", L"trainer_files", 0, ini) + (unsigned)repaired;
+        if (repaired) {
+            wsprintfW(val, L"%u", s_repairs_total);
+            WritePrivateProfileStringW(L"repairs", L"trainer_files", val, ini);
+        }
+    }
     return 1;
 }
 

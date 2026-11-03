@@ -18,6 +18,14 @@ static const char DEFAULT_INI[] =
     "; Log riders whose position goes bad (NaN), with how long it lasts. Read-only. 1 = on.\r\n"
     "log_bad_positions=1\r\n"
     "\r\n"
+    "[ui]\r\n"
+    "; The small MXBFix tab and page in the game. Never shown while riding. 1 = on, 0 = off.\r\n"
+    "enabled=1\r\n"
+    "\r\n"
+    "[updates]\r\n"
+    "; Ask GitHub once per game start whether there's a newer version. Never installs anything. 1 = on, 0 = off.\r\n"
+    "check=1\r\n"
+    "\r\n"
     "[fixes]\r\n"
     "; Each fix can be switched off here: <fix id>=0\r\n";
 
@@ -40,4 +48,13 @@ int cfg_int(const char *section, const char *key, int def)
     MultiByteToWideChar(CP_UTF8, 0, section, -1, s, 64);
     MultiByteToWideChar(CP_UTF8, 0, key, -1, k, 96);
     return (int)GetPrivateProfileIntW(s, k, def, s_ini);
+}
+
+int cfg_set_int(const char *section, const char *key, int value)
+{
+    wchar_t s[64], k[96], v[24];
+    MultiByteToWideChar(CP_UTF8, 0, section, -1, s, 64);
+    MultiByteToWideChar(CP_UTF8, 0, key, -1, k, 96);
+    wsprintfW(v, L"%d", value);
+    return WritePrivateProfileStringW(s, k, v, s_ini) != 0;
 }

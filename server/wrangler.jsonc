@@ -1,0 +1,20 @@
+{
+  // The relay for mxbfix crash reports and crash counts.
+  "name": "mxbfix-reports",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-03",
+  "observability": {
+    "enabled": true,
+    // Request logs are off so client addresses can't end up in them. Traces stay off for the same reason.
+    "logs": { "invocation_logs": false }
+  },
+  "triggers": { "crons": ["17 4 * * *"] },
+  "ratelimits": [
+    { "name": "PER_INSTALL", "namespace_id": "71001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "OVERALL", "namespace_id": "71002", "simple": { "limit": 300, "period": 60 } }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "mxbfix-reports", "database_id": "5dcdbe71-fad1-43c3-a066-fa2f64906699" }
+  ],
+  "vars": { "GITHUB_REPO": "xAmped/mxbfix" }
+}

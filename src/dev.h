@@ -31,9 +31,11 @@ uint8_t *test_target(const char *name);              /* stand-in address for a p
 int      test_protect_fail(const char *id, int nth); /* make the n-th VirtualProtect of a fix fail */
 void     test_paths(void);                           /* log how sample paths are written in reports */
 int      test_flag(const char *name);                /* MXBFIX_TEST_<name> is set */
+int      test_env(const char *name, char *buf, unsigned cap); /* value of MXBFIX_TEST_<name> */
 #else
 static inline uint8_t *test_target(const char *name) { (void)name; return NULL; }
 static inline int      test_protect_fail(const char *id, int nth) { (void)id; (void)nth; return 0; }
 static inline void     test_paths(void) {}
 static inline int      test_flag(const char *name) { (void)name; return 0; }
+static inline int      test_env(const char *name, char *buf, unsigned cap) { (void)name; (void)buf; (void)cap; return 0; }
 #endif

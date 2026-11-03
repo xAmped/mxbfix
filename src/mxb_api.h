@@ -22,6 +22,22 @@
 #define MXB_INTERFACE_VERSION 9
 #define MXB_TELEMETRY_10HZ    3
 
+/* Draw: 0,0 = top left, 1,1 = bottom right of the 16:9 UI area; corners counter-clockwise from top left. */
+typedef struct {
+    float         m_aafPos[4][2];
+    int           m_iSprite;       /* 1-based; 0 = fill with m_ulColor */
+    unsigned long m_ulColor;       /* ABGR */
+} SPluginQuad_t;
+
+typedef struct {
+    char          m_szString[100];
+    float         m_afPos[2];
+    int           m_iFont;         /* 1-based index in the font list */
+    float         m_fSize;
+    int           m_iJustify;      /* 0 left, 1 center, 2 right */
+    unsigned long m_ulColor;       /* ABGR */
+} SPluginString_t;
+
 typedef struct {
     char  m_szRiderName[100];
     char  m_szBikeID[100];

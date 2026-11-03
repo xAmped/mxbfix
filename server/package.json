@@ -1,0 +1,11 @@
+{
+  "name": "mxbfix-reports",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.156.2"
+  }
+}

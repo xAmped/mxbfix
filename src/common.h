@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#define MXBFIX_VERSION "0.1.5"
+#define MXBFIX_VERSION "0.1.6"
 
 /* ---- global paths and game identity (util.c) ---- */
 extern wchar_t  g_save_dir[MAX_PATH];     /* the game's save path, Documents\PiBoSo\MX Bikes\ (trailing backslash) */
@@ -46,3 +46,4 @@ void log_close(void);
 /* ---- config (config.c): <base>\mxbfix.ini ---- */
 void cfg_init(void);
 int  cfg_int(const char *section, const char *key, int def);
+int  cfg_set_int(const char *section, const char *key, int value);   /* writes mxbfix.ini, 0 if that failed; rare, never at crash time */
