@@ -4,8 +4,8 @@ What's planned. No dates; things ship when they work.
 
 ## Now
 
-- Physics crash fix: confirm it in real races. It's tested against the game's code but hasn't caught a live crash
-  yet.
+- Physics crash fix: keep confirming it in real races. Its first real catch was in November 2026: 2 crash values in
+  one online session, with no crash.
 
 ## Next
 

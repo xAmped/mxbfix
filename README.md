@@ -90,7 +90,8 @@ starts, and makes destroying an already-destroyed object do nothing.
 
 Verified in game: the gate and cancel crashes happened without the fix and not with it, doing the same thing; a
 trainer file that had crashed the game loaded fine with the fix, which logged the junk it handled. The physics
-fix is tested against the game's own code and is waiting for a real-world catch.
+fix is tested against the game's own code. Its first real-world catch was in November 2026: 2 crash values in one
+online session, with no crash.
 
 ### What it writes
 
