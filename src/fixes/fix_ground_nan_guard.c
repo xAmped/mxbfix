@@ -131,12 +131,14 @@ fix_t fix_ground_nan_guard = {
 #define SLOT_SIZE   0x5b24u
 #define SLOT_COUNT  50
 #define LOCAL_SLOT1 0xE62710u
-#define LOG_CAP     200
+#define LOG_CAP     200                      /* lines per session for ordinary bad positions */
+#define CRASH_EXTRA 200                      /* crash values still listed after that, per session */
 
 static int      s_watch = -1;                  /* -1 not decided, 0 off, 1 on */
 static uint8_t  s_bad[SLOT_COUNT];
+static uint8_t  s_listed[SLOT_COUNT];         /* this episode's start was logged, so log its end too */
 static uint64_t s_bad_since[SLOT_COUNT];
-static int      s_lines, s_episodes, s_max_in_use, s_seen_riders;
+static int      s_lines, s_crash_extra, s_unlisted, s_episodes, s_max_in_use, s_seen_riders;
 static uint64_t s_scans;
 
 #define RECORD_MAX (1024 * 1024)
@@ -214,8 +216,15 @@ void ground_watch_poll(void)
             int crashes = f_nan(pos[0]) || f_nan(pos[2]);       /* x or z NaN: what reaches +0x1f1923 unguarded */
             s_pending_total++;
             if (crashes) s_pending_crash++;
-            if (s_lines < LOG_CAP) flush_counts();
-            if (s_lines++ < LOG_CAP) {
+            /* Ordinary episodes stop being listed at the cap (one flickering rider can make thousands); crash values
+             * keep their own allowance, because they're the rare events worth a timestamp. Both are bounded. */
+            int over = s_lines >= LOG_CAP;
+            int list = !over || (crashes && s_crash_extra < CRASH_EXTRA);
+            s_listed[i] = (uint8_t)list;
+            if (!list) s_unlisted++;
+            else {
+                if (over) s_crash_extra++; else s_lines++;
+                flush_counts();
                 char msg[400];
                 snprintf(msg, sizeof msg, "bad rider position: slot %d (race %d, %s) x=%08x y=%08x z=%08x%s", i,
                          (int)rd32(slot + 0xc), i + 1 == local1 ? "YOU" : "another rider", pos[0], pos[1], pos[2],
@@ -226,10 +235,13 @@ void ground_watch_poll(void)
             }
         } else if (!bad && s_bad[i]) {
             s_bad[i] = 0;
-            if (s_lines++ < LOG_CAP) {
-                char msg[160];
-                snprintf(msg, sizeof msg, "bad rider position: slot %d %s after %llu ms", i,
-                         in_use ? "recovered" : "left (slot no longer in use)",
+            if (s_listed[i]) {
+                if (s_lines < LOG_CAP) s_lines++;
+                char msg[200], how[80];
+                if (in_use) lstrcpyA(how, "recovered");
+                else snprintf(how, sizeof how, "left (slot no longer in use: flags %x/%x/%x)", rd32(slot), rd32(slot + 0x50b0),
+                              rd32(slot + 0x50c4));
+                snprintf(msg, sizeof msg, "bad rider position: slot %d %s after %llu ms", i, how,
                          (unsigned long long)(GetTickCount64() - s_bad_since[i]));
                 log_msg("%s", msg);
                 record(msg);
@@ -252,8 +264,9 @@ void ground_watch_summary(void)
     log_msg("bad-position check: %llu scans, up to %d rider(s) in use at once, %d bad position(s)",
             (unsigned long long)s_scans, s_max_in_use, s_episodes);
     if (!s_episodes) return;
-    char msg[96];
-    snprintf(msg, sizeof msg, "bad rider positions this session: %d", s_episodes);
+    char msg[120];
+    if (s_unlisted) snprintf(msg, sizeof msg, "bad rider positions this session: %d (%d not listed, log limit reached)", s_episodes, s_unlisted);
+    else snprintf(msg, sizeof msg, "bad rider positions this session: %d", s_episodes);
     log_msg("%s", msg);
     record(msg);
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- Better logging of bad rider positions. No changes to the fixes.
+
 ## 0.1.4
 
 - Crash reports no longer include riders' race numbers.
