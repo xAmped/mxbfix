@@ -48,6 +48,7 @@ static float           s_last_mx, s_last_my;
 static ULONGLONG       s_cursor_until;
 static int             s_reports;
 static int             s_logged_state = -1;
+static int             s_have_mouse, s_was_running;
 static volatile LONG   s_setup_done, s_share;   /* [setup] done, [reports] share; the upload thread reads them */
 static int             s_save_failed;
 
@@ -454,7 +455,7 @@ static void read_cursor(int *down)
     }
 }
 
-static void poll_input(void)
+static void poll_input(int riding)
 {
     int down = 0;
     s_mouse_ok = 0;
@@ -462,8 +463,16 @@ static void poll_input(void)
     s_click = s_mouse_ok && down && !s_was_down;
     s_was_down = down;
     if (!s_mouse_ok) return;
+    if (!s_have_mouse) {                               /* the first reading is where the mouse rests, not movement */
+        s_have_mouse = 1;
+        s_last_mx = s_mx;
+        s_last_my = s_my;
+    }
+    /* Online the game can't pause and doesn't say when its menu opens, so moving the mouse is the signal. Riding needs a
+     * deliberate move, so a bump or a controller's stick doesn't bring the tab up. */
     float dx = s_mx - s_last_mx, dy = s_my - s_last_my;
-    if (dx * dx + dy * dy > 0.00001f || s_click) {
+    float need = riding ? 0.0004f : 0.00001f;
+    if (dx * dx + dy * dy > need || s_click) {
         s_cursor_until = GetTickCount64() + 3000;
         s_last_mx = s_mx;
         s_last_my = s_my;
@@ -480,19 +489,22 @@ void ui_draw(int state, int *num_quads, void **quads, int *num_strings, void **s
         log_msg("in-game page: draw state %d (0 track, 1 spectate, 2 replay), riding %d", state, g_ctx.running);
     }
     s_nq = s_ns = 0;
-    /* Riding: no input read and the page closes. Nothing on screen, except the setup reminder when stopped. */
-    if (state == 0 && g_ctx.running) {
+    int riding = state == 0 && g_ctx.running;
+    if (riding && !s_was_running) {                    /* back on the bike after a pause */
         s_open = 0;
-        s_was_down = 0;
         s_cursor_until = 0;
-        if (!banner_due()) return;
-        banner();
-    } else {
-        poll_input();
-        int recent = GetTickCount64() < s_cursor_until;
-        if (s_open) { if (s_setup_done) page(); else setup_page(); }
-        if (s_open || recent || !s_setup_done || update_state() == UPDATE_AVAILABLE) tab();
     }
+    s_was_running = riding;
+    poll_input(riding);
+    int recent = GetTickCount64() < s_cursor_until;
+    /* Online the page can be open while the bike is live: opening the throttle puts it away, as does leaving it alone. */
+    if (riding && s_open && (g_ctx.throttle > 0.2f || !recent)) s_open = 0;
+    if (s_open) {
+        if (over(PX, PY, PR, PY + PH)) s_cursor_until = GetTickCount64() + 3000;
+        if (s_setup_done) page(); else setup_page();
+    }
+    if (s_open || recent || (!riding && (!s_setup_done || update_state() == UPDATE_AVAILABLE))) tab();
+    else if (riding && banner_due()) banner();
     if (!s_nq && !s_ns) return;
     *quads = s_q;
     *num_quads = s_nq;

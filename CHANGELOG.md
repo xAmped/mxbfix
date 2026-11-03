@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- The MXBFix page now opens on online servers too: press Esc and move the mouse.
+
 ## 0.1.6
 
 - Added an in-game page in the pause menu: update status, crashes prevented and each fix.

@@ -37,9 +37,9 @@ source is all here.
 
 ## The in-game page
 
-Press **Esc** while on track, move the mouse, and click the MXBFix tab. The page shows your version, whether you're up to
-date, how many crashes it has prevented, your most common one and whether each fix is active. Nothing shows while you
-ride or in the pits.
+Press **Esc** while on track, move the mouse, and click the MXBFix tab in the bottom-left corner. The page shows your version,
+whether you're up to date, how many crashes it has prevented, your most common one and whether each fix is active. Online the game can't
+pause, so the tab appears whenever you move the mouse, and the page closes when you open the throttle.
 
 ## Updating
 

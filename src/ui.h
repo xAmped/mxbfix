@@ -1,6 +1,7 @@
 /*
  * The in-game page: a small tab that opens one page with the version, update status, crashes prevented and the state
- * of each fix. Never drawn or polled while riding. [ui] enabled=0 turns it off; the fixes don't depend on it.
+ * of each fix. The tab appears when the mouse moves. Online the game can't pause, so this works while riding too; the page closes when the
+ * throttle opens or the mouse is left alone. [ui] enabled=0 turns it off; the fixes don't depend on it.
  */
 #pragma once
 
