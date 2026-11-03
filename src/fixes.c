@@ -3,7 +3,6 @@
 #include <wchar.h>
 #include <stdlib.h>
 #include <string.h>
-#include "dev.h"
 
 /* ---- registry: add new fixes here ---- */
 extern fix_t fix_gate_vertex_pointer;
@@ -12,14 +11,8 @@ extern fix_t fix_trainer_repair;
 extern fix_t fix_ground_nan_guard;
 extern fix_t fix_trainer_cleanup_reset;
 
-#ifdef MXBFIX_TESTHOOKS
-extern fix_t fix_selftest;                 /* test-only, developer build */
-#endif
 
 static fix_t *ALL[] = {
-#ifdef MXBFIX_TESTHOOKS
-    &fix_selftest,
-#endif
     &fix_gate_vertex_pointer,
     &fix_trainer_series_lookup,
     &fix_trainer_repair,
@@ -48,13 +41,14 @@ int game_code_matches(uint32_t rva, const char *pattern)
     return bytes_match(code, n, pattern);
 }
 
-static void record_patch(uint8_t *at, const uint8_t *orig, size_t len);
 
 int fix_apply_patch(const char *id, uint8_t *p, const uint8_t *orig, const uint8_t *patch, size_t len)
 {
     uint8_t cur[256];
     if (!p || len > sizeof cur || !safe_read(p, cur, len)) return 0;
-    if (!memcmp(cur, patch, len)) { record_patch(p, orig, len); return 1; }   /* already patched */
+    if (!memcmp(cur, patch, len)) {                  /* already patched */
+        return 1;
+    }
     if (memcmp(cur, orig, len)) {
         log_msg("fix %s: game code differs from what the fix was written for; not applied", id);
         return 0;
@@ -64,7 +58,6 @@ int fix_apply_patch(const char *id, uint8_t *p, const uint8_t *orig, const uint8
         log_msg("fix %s: could not make the code writable (error %lu); not applied", id, GetLastError());
         return 0;
     }
-    record_patch(p, orig, len);
     memcpy(p, patch, len);
     BOOL restored = VirtualProtect(p, len, old, &tmp);
     BOOL flushed = FlushInstructionCache(GetCurrentProcess(), p, len);
@@ -74,28 +67,6 @@ int fix_apply_patch(const char *id, uint8_t *p, const uint8_t *orig, const uint8
     return 1;                                                    /* the bytes are patched either way */
 }
 
-/* Registry of patched spans (game address, original bytes) for fix_restore_originals(). */
-#define MAX_RECORDED 32
-static struct { uint8_t *at; uint32_t len; uint8_t orig[256]; } s_patched[MAX_RECORDED];
-static int s_npatched;
-
-static void record_patch(uint8_t *at, const uint8_t *orig, size_t len)
-{
-    if (s_npatched >= MAX_RECORDED || len > sizeof s_patched[0].orig) return;
-    s_patched[s_npatched].at = at;
-    s_patched[s_npatched].len = (uint32_t)len;
-    memcpy(s_patched[s_npatched].orig, orig, len);
-    s_npatched++;
-}
-
-void fix_restore_originals(uint8_t *copy, uint64_t copy_base, size_t copy_len)
-{
-    for (int i = 0; i < s_npatched; i++) {
-        uint64_t a = (uint64_t)(uintptr_t)s_patched[i].at;
-        for (uint32_t k = 0; k < s_patched[i].len; k++)
-            if (a + k >= copy_base && a + k < copy_base + copy_len) copy[a + k - copy_base] = s_patched[i].orig[k];
-    }
-}
 
 int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *sp, int n)
 {
@@ -113,7 +84,6 @@ int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *sp, int n
         }
     }
     if (applied == n) {                                          /* already in place */
-        for (int i = 0; i < n; i++) record_patch(base + sp[i].rva, sp[i].orig, sp[i].len);
         return 1;
     }
     if (applied) {
@@ -121,7 +91,7 @@ int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *sp, int n
         return 0;
     }
     for (int i = 0; i < n; i++) {                                /* 2. make every span writable */
-        if (test_protect_fail(id, i + 1) || !VirtualProtect(base + sp[i].rva, sp[i].len, PAGE_EXECUTE_READWRITE, &old[i])) {
+        if (!VirtualProtect(base + sp[i].rva, sp[i].len, PAGE_EXECUTE_READWRITE, &old[i])) {
             DWORD err = GetLastError(), tmp;
             /* Undo in reverse: spans can share a page, and a later span's "old" protection is the earlier
              * span's writable one; only unwinding backwards ends at the true original. */
@@ -131,7 +101,6 @@ int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *sp, int n
         }
     }
     for (int i = 0; i < n; i++) {                                /* 3. write everything */
-        record_patch(base + sp[i].rva, sp[i].orig, sp[i].len);
         memcpy(base + sp[i].rva, sp[i].patch, sp[i].len);
     }
     BOOL restored[MAXS];

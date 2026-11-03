@@ -35,7 +35,6 @@
  * bad instead, which is the evidence it worked.
  */
 #include "../fixes.h"
-#include "../dev.h"
 #include "../context.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,16 +82,14 @@ static const site_t SITES[] = {
 };
 #define NSITES ((int)(sizeof SITES / sizeof SITES[0]))
 
-/* Base of the image to patch and read: the game (or the test harness's stand-in in the developer build).
- * Looked up once (the scan below runs every frame). */
+/* Base of the image to patch and read. Looked up once (the scan below runs every frame). */
 static uint8_t *image_base(void)
 {
     static uint8_t *s_cached;
     static int s_done;
     if (s_done) return s_cached;
     s_done = 1;
-    s_cached = test_target("GAME_IMAGE");
-    if (!s_cached && g_game_build == GNG_BUILD)
+    if (g_game_build == GNG_BUILD)
         s_cached = g_game_base;
     return s_cached;
 }

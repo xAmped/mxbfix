@@ -60,8 +60,6 @@ typedef struct {
 } fix_span_t;
 int fix_apply_patches(const char *id, uint8_t *base, const fix_span_t *spans, int n);
 
-/* Original bytes of everything patched this session: puts them back into a copy of game memory. */
-void fix_restore_originals(uint8_t *copy, uint64_t copy_base, size_t copy_len);
 
 /* fixes/fix_trainer_series_lookup.c: log whether the loaded trainer's series name is junk */
 void trainer_fix_note(const char *when);

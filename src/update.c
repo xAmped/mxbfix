@@ -1,6 +1,5 @@
 #include "common.h"
 #include "update.h"
-#include "dev.h"
 #include "update_key.h"
 #include <bcrypt.h>
 #include <winhttp.h>
@@ -35,7 +34,7 @@ static int parse_version(const char *s, int v[3])
     return sscanf(s, "%d.%d.%d%n", &v[0], &v[1], &v[2], &n) == 3 && s[n] == 0 && v[0] >= 0 && v[1] >= 0 && v[2] >= 0;
 }
 
-/* The tag that came from GitHub (or the test harness): decide and publish. */
+/* The tag from GitHub: decide and publish. */
 static void conclude(const char *tag)
 {
     int have[3], got[3];
@@ -45,7 +44,7 @@ static void conclude(const char *tag)
         return;
     }
     snprintf(s_latest, sizeof s_latest, "%d.%d.%d", got[0], got[1], got[2]);
-    int newer = test_flag("UPDATE_FORCE");
+    int newer = 0;
     for (int i = 0; i < 3 && !newer; i++) {
         if (got[i] > have[i]) newer = 1;
         else if (got[i] < have[i]) break;
@@ -110,14 +109,6 @@ static DWORD WINAPI worker(LPVOID unused)
 {
     (void)unused;
     char tag[32];
-#ifdef MXBFIX_RESEARCH
-    if (cfg_int("research", "fake_update", 0)) { conclude("v9.9.9"); return 0; }   /* see the update notice in game */
-#endif
-    if (test_env("UPDATE", tag, sizeof tag)) {           /* developer build: no network in tests */
-        if (strcmp(tag, "fail")) conclude(tag);
-        else InterlockedExchange(&s_state, UPDATE_FAILED);
-        return 0;
-    }
     if (fetch_latest(tag, sizeof tag)) conclude(tag);
     else {
         log_msg("update check: couldn't get the latest version from GitHub (error %lu)", s_error);
@@ -192,29 +183,9 @@ static DWORD fetch_url(const wchar_t *path, unsigned char *out, DWORD cap, int t
     return total;
 }
 
-/* A file from the release, or from a local folder in the developer build's tests. */
+/* A file from the release. */
 static DWORD get_asset(const char *name, unsigned char *out, DWORD cap)
 {
-    char dir[MAX_PATH];
-    int local = test_env("UPDATE_SRC_DIR", dir, sizeof dir);
-#ifdef MXBFIX_RESEARCH
-    if (!local) {
-        wchar_t ini[MAX_PATH], w[MAX_PATH];
-        if (path_join(ini, MAX_PATH, g_base_dir, L"mxbfix.ini") && GetPrivateProfileStringW(L"research", L"fake_update_dir", L"", w, MAX_PATH, ini))
-            local = WideCharToMultiByte(CP_ACP, 0, w, -1, dir, MAX_PATH, NULL, NULL) > 0;
-    }
-#endif
-    if (local) {
-        char path[MAX_PATH];
-        snprintf(path, sizeof path, "%s%s", dir, name);
-        FILE *f = fopen(path, "rb");
-        if (f) {
-            size_t n = fread(out, 1, cap, f);
-            fclose(f);
-            return n >= cap ? 0 : (DWORD)n;
-        }
-        if (!test_flag("UPDATE_NET_IF_MISSING")) return 0;
-    }
     wchar_t url[160];
     wsprintfW(url, L"/xAmped/mxbfix/releases/download/v%hs/%hs", s_latest, name);
     return fetch_url(url, out, cap, !strcmp(name, "mxbfix.dlo"));
@@ -270,10 +241,6 @@ static int signature_ok(const unsigned char *file, DWORD n, const unsigned char 
     blob.h.dwMagic = BCRYPT_ECDSA_PUBLIC_P256_MAGIC;
     blob.h.cbKey = 32;
     memcpy(blob.xy, UPDATE_PUBLIC_KEY, 64);
-    char t[140];
-    if (test_env("UPDATE_PUBKEY", t, sizeof t) && strlen(t) == 128) {    /* developer build: tests sign with a throwaway key */
-        for (int i = 0; i < 64; i++) { unsigned v = 0; sscanf(t + 2 * i, "%2x", &v); blob.xy[i] = (unsigned char)v; }
-    }
     BCRYPT_ALG_HANDLE alg = NULL;
     BCRYPT_KEY_HANDLE key = NULL;
     if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_ECDSA_P256_ALGORITHM, NULL, 0) == 0) {
@@ -336,7 +303,7 @@ static int swap_in(const unsigned char *file, DWORD n)
         DeleteFileW(tmp);
         goto done;
     }
-    if (test_flag("UPDATE_FAIL_SWAP") || !MoveFileExW(cur, back, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    if (!MoveFileExW(cur, back, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
         log_msg("update install: can't move the current plugin (error %lu), keeping it", GetLastError());
         DeleteFileW(second);
         goto done;

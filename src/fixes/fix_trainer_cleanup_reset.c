@@ -30,7 +30,6 @@
  * logs when an unpatched game would crash, and when the fix very likely saved one.
  */
 #include "../fixes.h"
-#include "../dev.h"
 #include <stdlib.h>
 
 #define TCR_BUILD 0x6A21833Du
@@ -75,15 +74,14 @@ static const tcr_site_t SITES[] = {
 };
 #define NSITES ((int)(sizeof SITES / sizeof SITES[0]))
 
-/* The game (or the test harness's stand-in in the developer build). Looked up once. */
+/* The game's image, if this is the build the fix was written for. Looked up once. */
 static uint8_t *image_base(void)
 {
     static uint8_t *s_cached;
     static int s_done;
     if (s_done) return s_cached;
     s_done = 1;
-    s_cached = test_target("GAME_IMAGE");
-    if (!s_cached && g_game_build == TCR_BUILD)
+    if (g_game_build == TCR_BUILD)
         s_cached = g_game_base;
     return s_cached;
 }

@@ -5,7 +5,6 @@
 #include "ui.h"
 #include "update.h"
 #include "upload.h"
-#include "dev.h"
 #include "ui_font_data.h"
 #include <shellapi.h>
 #include <stdio.h>
@@ -179,9 +178,7 @@ static void set_share(int on)
 
 static void open_target(const wchar_t *what)
 {
-    char tmp[8];
     log_msg("in-game page: opening %ls", what);
-    if (test_env("NO_SHELL", tmp, sizeof tmp)) return;       /* developer build: tests stay on screen */
     ShellExecuteW(NULL, L"open", what, NULL, NULL, SW_SHOWNORMAL);
 }
 
@@ -436,31 +433,32 @@ static void tab(void)
 
 /* ---- input ---- */
 
+/* The cursor in UI coordinates, and the left button. */
+static void read_cursor(int *down)
+{
+    HWND w = GetForegroundWindow();
+    DWORD pid = 0;
+    if (w) GetWindowThreadProcessId(w, &pid);
+    POINT p;
+    RECT rc;
+    if (w && pid == GetCurrentProcessId() && GetCursorPos(&p) && ScreenToClient(w, &p) && GetClientRect(w, &rc) &&
+        rc.right > 0 && rc.bottom > 0) {
+        /* The UI lives in the largest centred 16:9 rectangle of the window. */
+        float cw = (float)rc.right, ch = (float)rc.bottom;
+        float vw = cw, vh = ch;
+        if (cw * 9.0f > ch * 16.0f) vw = ch * 16.0f / 9.0f; else vh = cw * 9.0f / 16.0f;
+        s_mx = ((float)p.x - (cw - vw) / 2.0f) / vw;
+        s_my = ((float)p.y - (ch - vh) / 2.0f) / vh;
+        s_mouse_ok = 1;
+        *down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    }
+}
+
 static void poll_input(void)
 {
-    char t[48];
     int down = 0;
     s_mouse_ok = 0;
-    if (test_env("MOUSE", t, sizeof t)) {
-        if (sscanf(t, "%f,%f,%d", &s_mx, &s_my, &down) == 3) s_mouse_ok = 1;
-    } else {
-        HWND w = GetForegroundWindow();
-        DWORD pid = 0;
-        if (w) GetWindowThreadProcessId(w, &pid);
-        POINT p;
-        RECT rc;
-        if (w && pid == GetCurrentProcessId() && GetCursorPos(&p) && ScreenToClient(w, &p) && GetClientRect(w, &rc) &&
-            rc.right > 0 && rc.bottom > 0) {
-            /* The UI lives in the largest centred 16:9 rectangle of the window. */
-            float cw = (float)rc.right, ch = (float)rc.bottom;
-            float vw = cw, vh = ch;
-            if (cw * 9.0f > ch * 16.0f) vw = ch * 16.0f / 9.0f; else vh = cw * 9.0f / 16.0f;
-            s_mx = ((float)p.x - (cw - vw) / 2.0f) / vw;
-            s_my = ((float)p.y - (ch - vh) / 2.0f) / vh;
-            s_mouse_ok = 1;
-            down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-        }
-    }
+    read_cursor(&down);
     s_click = s_mouse_ok && down && !s_was_down;
     s_was_down = down;
     if (!s_mouse_ok) return;

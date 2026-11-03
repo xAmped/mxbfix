@@ -21,7 +21,6 @@
 #include "json.h"
 #include "known.h"
 #include "batches.h"
-#include "dev.h"
 #include <psapi.h>
 #include <dbghelp.h>
 #include <winevt.h>
@@ -577,7 +576,6 @@ static struct {
     EXCEPTION_POINTERS *ep;
     volatile LONG       ok;            /* MiniDumpWriteDump succeeded */
 } s_dump_job;
-static int s_test_dump_fail;            /* test harness: make the dump fail (developer build only) */
 
 static DWORD WINAPI dump_worker(LPVOID unused)
 {
@@ -587,8 +585,7 @@ static DWORD WINAPI dump_worker(LPVOID unused)
                                       MiniDumpWithUnloadedModules | MiniDumpWithFullMemoryInfo |
                                       MiniDumpWithThreadInfo | MiniDumpWithHandleData);
     BOOL ok;
-    if (s_test_dump_fail) { DWORD wr; ok = FALSE; WriteFile(s_dump_job.file, "MDMP", 4, &wr, NULL); }   /* partial */
-    else ok = s_minidump(GetCurrentProcess(), GetCurrentProcessId(), s_dump_job.file, t, &mei, NULL, NULL);
+    ok = s_minidump(GetCurrentProcess(), GetCurrentProcessId(), s_dump_job.file, t, &mei, NULL, NULL);
     CloseHandle(s_dump_job.file);
     s_dump_job.ok = ok ? 1 : 0;
     return 0;
@@ -938,15 +935,11 @@ static LONG WINAPI unhandled_filter(EXCEPTION_POINTERS *ep)
 
 static LONG CALLBACK vectored_handler(EXCEPTION_POINTERS *ep)
 {
-    if (batches_on_exception(ep)) return EXCEPTION_CONTINUE_EXECUTION;
     switch (ep->ExceptionRecord->ExceptionCode) {
     case EXCEPTION_ACCESS_VIOLATION:
     case EXCEPTION_ILLEGAL_INSTRUCTION:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
-#ifdef MXBFIX_TESTHOOKS
-    case MXBFIX_SELFTEST_CODE:
-#endif
         return fixes_dispatch(ep);
     default:
         return EXCEPTION_CONTINUE_SEARCH;
@@ -960,7 +953,6 @@ void crash_install(void)
     HMODULE dbg = LoadLibraryW(L"dbghelp.dll");
     s_minidump = dbg ? (MiniDumpWriteDump_t)(void *)GetProcAddress(dbg, "MiniDumpWriteDump") : NULL;
     s_write_dumps = cfg_int("capture", "write_dumps", 1);
-    s_test_dump_fail = test_flag("DUMP_FAIL");
 
     ULONG guarantee = 64 * 1024;          /* stack kept free for exception handling on the game thread */
     SetThreadStackGuarantee(&guarantee);

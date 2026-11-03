@@ -11,7 +11,6 @@
 #include "fixes.h"
 #include "mxb_api.h"
 #include "batches.h"
-#include "dev.h"
 #include "ui.h"
 #include "update.h"
 #include "upload.h"
@@ -49,7 +48,6 @@ EXPORT int Startup(char *save_path)
     cfg_init();
     util_init_game_identity();
     log_msg("mxbfix %s starting, game build 0x%08X, image %u bytes", MXBFIX_VERSION, g_game_build, g_game_size);
-    test_paths();                    /* developer build only */
 
     env_collect_startup();
     crash_check_previous_session();
@@ -58,9 +56,7 @@ EXPORT int Startup(char *save_path)
     fixes_init();
     crash_cleanup_old_dumps();
     batches_init();
-    research_start();                /* developer build only */
     batches_log("startup");
-    batches_watch_arm();
 
     ctx_event("Startup", 0, 0);
     return MXB_TELEMETRY_10HZ;
@@ -69,13 +65,10 @@ EXPORT int Startup(char *save_path)
 EXPORT void Shutdown(void)
 {
     ctx_event("Shutdown", 0, 0);
-    research_stop();
     update_stop();
     upload_stop();
     fixes_poll();
     ground_watch_summary();
-    batches_watch_poll();
-    batches_watch_disarm();          /* before the handler goes away */
     log_msg("clean shutdown");
     crash_session_end();
     crash_uninstall();
@@ -105,7 +98,6 @@ EXPORT void EventInit(void *data, int size)
     crash_session_update();
     trainer_fix_note("event load");
     batches_log("event start");
-    batches_watch_arm();
     log_msg("event: %s, track '%s', bike '%s', server '%s'", g_ctx.event_type == 2 ? "race" : "testing",
             g_ctx.track_name, g_ctx.bike_name, g_ctx.server);
 }
@@ -132,12 +124,9 @@ EXPORT void RunInit(void *data, int size)
     g_ctx.have_telemetry = 0;
     ctx_event("RunInit", g_ctx.session, g_ctx.conditions);
     crash_session_update();
-    batches_watch_poll();
     trainer_fix_note("on track");
     batches_run_init();
-    batches_force_gate_state(1);
     batches_log("on track");
-    batches_watch_arm();
 }
 
 EXPORT void RunDeinit(void)
@@ -154,8 +143,6 @@ EXPORT void RunStart(void)
     g_ctx.run_start_tick = GetTickCount64();
     ctx_event("RunStart", 0, 0);
     crash_session_update();
-    batches_watch_poll();
-    batches_force_gate_state(0);
     batches_log("ride out");
 }
 
@@ -203,7 +190,6 @@ EXPORT void RunTelemetry(void *data, int size, float time, float pos)
     g_ctx.have_telemetry = 1;
     fixes_poll();
     ground_watch_poll();
-    batches_watch_poll();
     batches_poll_activity();
 }
 

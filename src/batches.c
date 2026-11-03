@@ -15,7 +15,6 @@
 #include "common.h"
 #include "json.h"
 #include "batches.h"
-#include "dev.h"
 #include "context.h"
 #include <stdlib.h>
 
@@ -59,9 +58,7 @@ const char *batches_mem_state(uint64_t a)
 
 void batches_init(void)
 {
-    s_table = (uint64_t)(uintptr_t)test_target("BATCH_TABLE");
-    if (!s_table && g_game_build == BUILD_WITH_TABLE)
-        s_table = (uint64_t)g_game_base + TABLE_RVA;
+    s_table = g_game_build == BUILD_WITH_TABLE ? (uint64_t)g_game_base + TABLE_RVA : 0;
     log_msg("render batch check: %s", s_table ? "on" : "not available for this game version");
 }
 
@@ -117,6 +114,6 @@ void batches_poll_activity(void)
     int risky = gate_fix_is_risky(b.client, b.gpu_buffer);
     log_msg("batch 0 became active: %d vertices written (on-track time %.1fs)%s", b.written, (double)g_ctx.on_track_time,
             risky ? ", in the risky state" : ", not in the risky state (would not crash)");
-    /* Count only real prevented crashes: risky state + first draw, never a forced test state. */
-    if (risky && !batches_gate_forced()) gate_fix_record_save(b.client);
+    /* A prevented crash is the risky state plus a first draw. */
+    if (risky) gate_fix_record_save(b.client);
 }

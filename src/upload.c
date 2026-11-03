@@ -1,6 +1,5 @@
 #include "common.h"
 #include "upload.h"
-#include "dev.h"
 #include "ui.h"
 #include <bcrypt.h>
 #include <winhttp.h>
@@ -124,20 +123,6 @@ static size_t build_payload(const char *in, size_t n, char *out, size_t cap)
 /* HTTP status, 0 if it couldn't be sent. */
 static DWORD post(const wchar_t *path, const char *body, size_t len)
 {
-    char dir[MAX_PATH];
-    if (test_env("UPLOAD_DIR", dir, sizeof dir)) {           /* developer build: tests write here, no network */
-        char name[MAX_PATH];
-        static int seq;
-        snprintf(name, sizeof name, "%s%ls-%d.json", dir, path + 4, seq++);
-        FILE *f = fopen(name, "wb");
-        if (!f) return 0;
-        fwrite(body, 1, len, f);
-        fclose(f);
-        char v[16];
-        if (test_env("UPLOAD_SLOW", v, sizeof v)) Sleep((DWORD)atoi(v));
-        return test_env("UPLOAD_STATUS", v, sizeof v) ? (DWORD)atoi(v) : 201;
-    }
-    if (!RELAY_HOST[0]) return 0;
     DWORD status = 0, size = sizeof status;
     wchar_t ua[48];
     wsprintfW(ua, L"mxbfix/%hs", MXBFIX_VERSION);
@@ -242,8 +227,6 @@ static void send_counts(void)
 static DWORD WINAPI worker(LPVOID unused)
 {
     (void)unused;
-    char t[MAX_PATH];
-    if (!RELAY_HOST[0] && !test_env("UPLOAD_DIR", t, sizeof t)) return 0;
     load_install_id();
     if (!s_install_id[0]) return 0;
     send_reports();
