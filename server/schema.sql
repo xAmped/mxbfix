@@ -24,7 +24,10 @@ CREATE TABLE IF NOT EXISTS signatures (
   last_build TEXT,
   issue_number INTEGER,
   issue_claimed_at INTEGER,
-  issue_reports INTEGER NOT NULL DEFAULT 0
+  issue_reports INTEGER NOT NULL DEFAULT 0,
+  -- Set by the maintainer: nothing reaches a public issue before this.
+  approved INTEGER NOT NULL DEFAULT 0,
+  issue_synced_day TEXT
 );
 
 CREATE TABLE IF NOT EXISTS signature_installs (

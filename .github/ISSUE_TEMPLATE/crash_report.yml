@@ -7,7 +7,7 @@ body:
       value: |
         If "Send crash reports and crash counts" is on, the report reaches us by itself on your next game start, so you don't need to file this.
 
-        Please don't attach `.dmp` files. They're raw memory and can contain private information.
+        Please don't attach report files or `.dmp` files: issues are public, and they include details like your server name.
   - type: textarea
     id: what
     attributes:
@@ -15,10 +15,8 @@ body:
       placeholder: e.g. riding out of the pits, loading a track, joining a server
     validations:
       required: true
-  - type: textarea
-    id: report
+  - type: input
+    id: location
     attributes:
-      label: Crash report
-      description: "Drag in the newest `.json` from `Documents\\PiBoSo\\MX Bikes\\mxbfix\\reports\\pending\\`"
-    validations:
-      required: true
+      label: Crash location (optional)
+      description: "Open the newest `.json` in `Documents\\PiBoSo\\MX Bikes\\mxbfix\\reports\\pending\\` with Notepad and copy the `signature` value, like `mxbikes.exe+0x1a29ae`"

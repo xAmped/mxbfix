@@ -1,15 +1,23 @@
 // What the relay accepts. The plugin strips these fields first; this is the second lock.
 export const MAX_BODY = 128 * 1024;
 export const MAX_REPORTS_PER_SIGNATURE_PER_DAY = 50;
-export const ISSUE_MIN_INSTALLS = 2;
-// Daily limits across all senders. Reaching one means look into it and adjust.
-export const DAILY = { issues: 100, stored: 2000, signatures: 500 };
+// Daily limits across all senders, sized so a flood can't outgrow the database: 90 days of the worst case stays under 500 MB (a test
+// measures this on the real schema). Reaching one means look into it and adjust. Nothing is lost when one is reached: the plugin keeps
+// the report and tries again.
+export const DAILY = { intake: 3000, stored_bytes: 2 * 1024 * 1024, signatures: 500 };
+// What a kept report costs beyond its text: IDs, versions, the row and its three indexes.
+export const ROW_OVERHEAD_BYTES = 600;
+// Per fix, per day. Real counts over this wait for the next day on the player's PC.
+export const DAILY_COUNT_CEILING = 1000;
 export const FIXES = ["gate-vertex-pointer", "trainer-series-lookup", "trainer-cleanup-reset", "ground-nan-guard"];
 const MAX_COUNT = 100;
 
+// Raw CPU values and memory bytes aren't on this list: they could hold a fragment of whatever the game was handling. The plugin's
+// own diagnosis, made from them on the player's PC, is kept.
 const KEEP = new Set(["schema", "kind", "id", "time_utc", "plugin", "game", "signature", "known", "exception", "diagnosis",
-  "registers", "register_targets", "xmm_low", "stack", "stack_scan", "context", "batches", "recent_events", "env", "fixes",
+  "register_targets", "stack", "stack_scan", "context", "batches", "recent_events", "env", "fixes",
   "modules", "truncated", "partial", "summary", "previous_session", "windows_event", "install_id"]);
+const RAW_FIELDS = new Set(["registers", "xmm_low", "code_at_fault", "code_before_fault"]);
 
 // module+offset, or a bare address when the crash was outside any module. Nothing here can carry Markdown or a mention.
 const SIGNATURE = /^(unclean-exit|0x[0-9a-f]{1,16}|[a-z0-9_.\-() ]{1,80}\+0x[0-9a-f]{1,16})$/;
@@ -20,13 +28,13 @@ const REPORT_ID = /^[A-Za-z0-9_\-]{1,96}$/;
 const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 const BUILD = /^0x[0-9a-f]{1,8}$/;
 
-// Second lock on private data at any depth: no "path" members, no strings that look like file paths.
+// Second lock on private data at any depth: no "path" members, no raw CPU values or memory bytes, no strings that look like file paths.
 function scrub(v) {
   if (typeof v === "string") return LOOKS_LIKE_PATH.test(v) ? "(removed)" : v;
   if (Array.isArray(v)) return v.map(scrub);
   if (v && typeof v === "object") {
     const out = {};
-    for (const [k, x] of Object.entries(v)) if (k !== "path") out[k] = scrub(x);
+    for (const [k, x] of Object.entries(v)) if (k !== "path" && !RAW_FIELDS.has(k)) out[k] = scrub(x);
     return out;
   }
   return v;

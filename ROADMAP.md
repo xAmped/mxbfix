@@ -21,5 +21,5 @@ What's planned. No dates; things ship when they work.
 ## Help
 
 Crashed with mxbfix installed? If you left crash reports on, it reaches us by itself. If you turned them off, you can
-[open an issue](../../issues/new/choose) and attach the newest file from
-`Documents\PiBoSo\MX Bikes\mxbfix\reports\pending\`.
+[open an issue](../../issues/new/choose) and tell us what you were doing. Please don't attach the report file: it
+includes details like your server name that shouldn't be public.

@@ -11,7 +11,11 @@
   "triggers": { "crons": ["17 4 * * *"] },
   "ratelimits": [
     { "name": "PER_INSTALL", "namespace_id": "71001", "simple": { "limit": 10, "period": 60 } },
-    { "name": "OVERALL", "namespace_id": "71002", "simple": { "limit": 300, "period": 60 } }
+    { "name": "OVERALL", "namespace_id": "71002", "simple": { "limit": 300, "period": 60 } },
+    // Keyed on a scrambled address (index.js, addressKey). Generous, since players can share a connection.
+    { "name": "REPORT_PER_ADDRESS", "namespace_id": "71003", "simple": { "limit": 30, "period": 60 } },
+    { "name": "COUNTS_PER_ADDRESS", "namespace_id": "71004", "simple": { "limit": 10, "period": 60 } },
+    { "name": "READ_PER_ADDRESS", "namespace_id": "71005", "simple": { "limit": 60, "period": 60 } }
   ],
   "d1_databases": [
     { "binding": "DB", "database_name": "mxbfix-reports", "database_id": "5dcdbe71-fad1-43c3-a066-fa2f64906699" }

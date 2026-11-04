@@ -57,12 +57,14 @@ and only crashes from then on are sent.
 
 | | |
 |---|---|
-| **Sent after a crash** | Where it crashed, the call stack and CPU registers at that moment, game and plugin versions, active fixes, Windows version, CPU, RAM, GPU and driver, ReShade, server name, track, bike, session type, recent game events, the names of loaded plugins and modules, and a random ID for this install |
+| **Sent after a crash** | Where it crashed, the call stack at that moment, game and plugin versions, active fixes, Windows version, CPU, RAM, GPU and driver, ReShade, server name, track, bike, session type, recent game events, the names of loaded plugins and modules, and a random ID for this install |
 | **Sent once a day** | How many crashes of each type were prevented. No ID |
-| **Never sent** | Rider names, race numbers, passwords, your Windows user name, file paths, crash dumps |
+| **Sent, then thrown away** | CPU register values and the bytes of code at the crash. They could, rarely, hold a fragment of what the game was handling, so the server deletes them before saving anything. A coming version stops sending them |
+| **Never deliberately sent** | Rider names, race numbers, passwords, your Windows user name, file paths, crash dumps |
 
-Reports go to [our server](server), which keeps them privately for 90 days and doesn't store IP addresses. Public
-[issues](../../issues) only show the crash location, how many reports there are and which versions. The random ID shows
+Reports go to [our server](server), which keeps them privately for 90 days and doesn't store IP addresses. To stop abuse it
+briefly uses your address in scrambled form, which changes daily and is never saved. Public
+[issues](../../issues) only appear once the maintainer has reviewed a crash type, and only show the crash location, how many reports there are and which versions. The random ID shows
 whether one player crashed 50 times or 50 players crashed once. Deleting `mxbfix.ini` replaces it.
 
 The plugin also asks GitHub for the latest version number each time the game starts. `[updates] check=0` turns that off.
@@ -70,7 +72,7 @@ The plugin also asks GitHub for the latest version number each time the game sta
 ### Crashes prevented
 
 The badge at the top adds up the daily counts that plugins report, so treat it as approximate: players with the box off aren't
-counted, and the server can't prove every count is genuine. A "prevented" crash means the plugin handled a situation that crashes the
+counted, the server can't prove every count is genuine, and it limits how many it takes per day, so a very busy day catches up later. A "prevented" crash means the plugin handled a situation that crashes the
 unfixed game.
 
 ## What it fixes
