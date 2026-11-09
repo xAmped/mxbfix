@@ -8,6 +8,7 @@
 #include "common.h"
 #include "context.h"
 #include "crash.h"
+#include "alive.h"
 #include "fixes.h"
 #include "mxb_api.h"
 #include "batches.h"
@@ -52,6 +53,7 @@ EXPORT int Startup(char *save_path)
     env_collect_startup();
     crash_check_previous_session();
     crash_session_begin();
+    alive_start();
     crash_install();
     fixes_init();
     crash_cleanup_old_dumps();
@@ -68,8 +70,11 @@ EXPORT void Shutdown(void)
     update_stop();
     upload_stop();
     fixes_poll();
+    suspension_guard_poll();
+    suspension_guard_summary();
     ground_watch_summary();
     log_msg("clean shutdown");
+    alive_stop();
     crash_session_end();
     crash_uninstall();
     log_close();
@@ -188,7 +193,9 @@ EXPORT void RunTelemetry(void *data, int size, float time, float pos)
     g_ctx.track_pos = pos;
     g_ctx.telemetry_tick = GetTickCount64();
     g_ctx.have_telemetry = 1;
+    alive_beat();
     fixes_poll();
+    suspension_guard_poll();
     ground_watch_poll();
     batches_poll_activity();
 }
@@ -206,6 +213,7 @@ EXPORT void Draw(int state, int *num_quads, void **quads, int *num_strings, void
     if (quads) *quads = NULL;
     if (num_strings) *num_strings = 0;
     if (strings) *strings = NULL;
+    alive_beat();
     ui_draw(state, num_quads, quads, num_strings, strings);
 }
 
@@ -214,6 +222,7 @@ EXPORT void RaceTrackPosition(int num_vehicles, void *data, int size)
     (void)num_vehicles;
     (void)data;
     (void)size;
+    alive_beat();
     ground_watch_poll();
 }
 

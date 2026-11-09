@@ -15,3 +15,6 @@ void crash_session_update(void);            /* call when track/session state cha
 void crash_session_end(void);               /* clean shutdown */
 
 void crash_cleanup_old_dumps(void);
+int  crash_in_progress(void);      /* the crash handler has started writing a report */
+int  crash_dbghelp_claim(void);    /* 1 if this caller may use DbgHelp now; release when done */
+void crash_dbghelp_release(void);

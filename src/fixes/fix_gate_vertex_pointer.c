@@ -102,8 +102,12 @@ void gate_fix_record_save(uint64_t client)
                 (void *)client);
         return;
     }
-    log_msg("gate-vertex-pointer: render batch 0 drew with its memory above 4 GB and no GPU buffer (%p): this would have crashed; the fix covers it",
-            (void *)client);
+    /* Once per session: without the fix the first one would have ended it, so a later ride out isn't another crash. */
+    static int counted;
+    log_msg("gate-vertex-pointer: render batch 0 drew with its memory above 4 GB and no GPU buffer (%p): this would have crashed; the fix covers it%s",
+            (void *)client, counted ? " (not counted again this session)" : "");
+    if (counted) return;
+    counted = 1;
     InterlockedIncrement(&fix_gate_vertex_pointer.saves);
 }
 

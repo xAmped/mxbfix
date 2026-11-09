@@ -8,8 +8,9 @@
 
 Stops the most common MX Bikes crashes.
 
-mxbfix is a plugin for **MX Bikes Beta 21e**. It fixes four bugs in the game. Those four crash types make up about
-65% of the crash reports in [mxbmrp3's survey](https://github.com/thomas4f/mxbmrp3/blob/main/usage_survey/REPORT.md).
+mxbfix is a plugin for **MX Bikes Beta 21e**. It fixes five bugs in the game. Four of them cover about 65% of the crash reports in
+[mxbmrp3's survey](https://github.com/thomas4f/mxbmrp3/blob/main/usage_survey/REPORT.md); the fifth stops the "Forest"
+crash when it starts at a fence (that crash is about 5% of reports, not all of them from fences).
 If the game still crashes, it saves a report of what happened.
 
 ![The MXBFix page in the pause menu](media/page.png)
@@ -57,9 +58,9 @@ and only crashes from then on are sent.
 
 | | |
 |---|---|
-| **Sent after a crash** | Where it crashed, the call stack at that moment, game and plugin versions, active fixes, Windows version, CPU, RAM, GPU and driver, ReShade, server name, track, bike, session type, recent game events, the names of loaded plugins and modules, and a random ID for this install |
+| **Sent after a crash or freeze** | Where it crashed, or whether it froze and for how long, the call stack at that moment, game and plugin versions, active fixes, Windows version, CPU, RAM, GPU and driver, ReShade, server name, track, bike, session type, recent game events, the names of loaded plugins and modules, and a random ID for this install |
 | **Sent once a day** | How many crashes of each type were prevented. No ID |
-| **Sent, then thrown away** | CPU register values and the bytes of code at the crash. They could, rarely, hold a fragment of what the game was handling, so the server deletes them before saving anything. A coming version stops sending them |
+| **Kept on your PC only** | CPU register values and the bytes of code at the crash. They could, rarely, hold a fragment of what the game was handling, so they stay in your local report (from 0.1.8; the server deleted them before that) |
 | **Never deliberately sent** | Rider names, race numbers, passwords, your Windows user name, file paths, crash dumps |
 
 Reports go to [our server](server), which keeps them privately for 90 days and doesn't store IP addresses. To stop abuse it
@@ -83,6 +84,7 @@ unfixed game.
 | Track loading crash | While a track loads | Damaged trainer (ghost lap) files made the game read garbage |
 | Physics crash | While racing | A rider's broken (NaN) position made the game read far outside the map |
 | Cancel crash | Cancelling a server join after riding offline | The game cleaned up your trainer twice |
+| Fence crash | After scraping a fence with the handlebar | A collision with a paper-thin fence divided 0 by 0 and broke the bike's physics |
 
 What's planned next: [ROADMAP.md](ROADMAP.md). Found a security problem? See [SECURITY.md](SECURITY.md).
 
@@ -142,6 +144,14 @@ never clears its "trainer loaded" flag. Online events don't load a trainer, so a
 server join runs the cleanup again on objects that are already gone. The fix clears the flag as the cleanup
 starts, and makes destroying an already-destroyed object do nothing.
 
+**`fence-contact-nan`**, crash at `mxbikes.exe+0x1a29ae` (the "Forest" crash). The sphere-vs-track collision
+(`+0x2d75b0`) divides by the distance between a sphere's centre and the closest point on a triangle, then skips the
+triangle if the result is negative with `comiss` + `ja`. When a small sphere such as the handlebar end sits exactly on
+a zero-thickness fence, that's 0/0 = NaN, which the check lets through: the contact reaches the physics with a NaN
+depth and breaks the whole bike, and the next suspension update reads far outside its table. The fix swaps the
+comparison to `comiss` + `jb` at `+0x2d7dce`, so NaN is skipped like a negative value. Every ordinary value gives the
+same result as before.
+
 Verified in game: the gate and cancel crashes happened without the fix and not with it, doing the same thing; a
 trainer file that had crashed the game loaded fine with the fix, which logged the junk it handled. The physics
 fix is tested against the game's own code. Its first real-world catch was in November 2026: 2 crash values in one
@@ -164,18 +174,19 @@ font and its update backup, in `plugins\mxbfix_data\`.
 |---|---|
 | `mxbfix.log` | This session: which fixes are active, track and bike loaded, bad rider positions, anything a fix caught. `mxbfix.prev.log` is the session before |
 | `reports\pending\*.json` | One per crash: where it crashed and why (for known crashes), call stack, loaded modules, what you were doing (track, bike, server name, session, number of riders, last telemetry, last game events) and your PC (Windows, CPU, RAM, GPU and driver, ReShade). No rider names, race numbers, passwords or Windows user name. `reports\sent\` holds the ones already sent, and `reports\rejected\` any the server refused |
-| `dumps\*.dmp` | A crash dump for each crash (the newest 10 are kept). Dumps are raw memory and aren't scrubbed: they can contain anything the game had loaded, so only share one if you're comfortable with that. They're never sent automatically |
+| `dumps\*.dmp` | A crash dump for each crash (the newest 3 are kept). Dumps are raw memory and aren't scrubbed: they can contain anything the game had loaded, so only share one if you're comfortable with that. They're never sent automatically |
 | `bad_positions.log` | Every rider whose position went bad, with race number, the raw values and how long it lasted. Kept between sessions, up to 1 MB. Stays on your PC |
 | `stats.ini` | Running counts: crashes each fix prevented, bad positions seen, trainer files repaired |
 | `backups\trainers\` | The original of every trainer file `trainer-repair` changed |
 | `session.lock` | Present while the game runs. If it's still there next time, the game didn't close cleanly and a report is written |
+| `%TEMP%\mxbfix\alive-*.txt` | One tiny file while the game runs, updated every 2 seconds: when the game last responded and whether Windows saw it hang. Deleted at a clean exit; if the game didn't close cleanly, the next start reads it to tell a freeze from a crash. In the Windows temp folder so it doesn't sync to OneDrive |
 
 ### All settings
 
 | Section | Key | Default | Meaning |
 |---|---|---|---|
 | `[capture]` | `write_dumps` | `1` | Save a crash dump for each crash |
-| `[capture]` | `keep_dumps` | `10` | How many crash dumps to keep |
+| `[capture]` | `keep_dumps` | `3` | How many crash dumps to keep (about 60 MB each) |
 | `[capture]` | `log_bad_positions` | `1` | Log riders whose position goes bad |
 | `[ui]` | `enabled` | `1` | `0` turns off the in-game tab and page. With it off, the setup can't run, so nothing is sent |
 | `[updates]` | `check` | `1` | `0` stops the check for new versions |

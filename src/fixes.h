@@ -23,7 +23,8 @@ struct fix {
     const char *title;              /* one line, player-facing */
     const char *crash_id;           /* the known crash (known.h id) this fix addresses */
     int  (*install)(fix_t *self);   /* optional; return 1 if the fix is active */
-    int  (*on_exception)(fix_t *self, EXCEPTION_POINTERS *ep);  /* optional; 1 = recovered */
+    int  (*on_exception)(fix_t *self, EXCEPTION_POINTERS *ep);  /* optional; 1 = recovered (counts a save),
+                                                                   FIX_RECOVERED_SAME = recovered, same episode */
     /* runtime state */
     int           enabled;          /* from config, default 1 */
     int           active;           /* installed and ready */
@@ -31,6 +32,8 @@ struct fix {
     LONG          saves_logged;
     UINT          saves_total_base; /* lifetime total from stats.ini at startup (crash-safe to read) */
 };
+
+#define FIX_RECOVERED_SAME 2     /* on_exception: recovered a repeat of a crash already counted (e.g. every tick) */
 
 void   fixes_init(void);
 LONG   fixes_dispatch(EXCEPTION_POINTERS *ep);   /* called by the vectored handler */
@@ -67,6 +70,10 @@ void trainer_fix_note(const char *when);
 /* fixes/fix_ground_nan_guard.c: passive log of rider slots whose position goes bad (game thread) */
 void ground_watch_poll(void);
 void ground_watch_summary(void);
+
+/* fixes/fix_suspension_nan_guard.c: game thread (RunTelemetry), log what the game does with a bike whose physics broke */
+void suspension_guard_poll(void);
+void suspension_guard_summary(void);
 
 /* fixes/fix_trainer_cleanup_reset.c: at Event Deinit (just before the trainer cleanup), log what it will do */
 void trainer_cleanup_note(void);

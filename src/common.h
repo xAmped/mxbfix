@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#define MXBFIX_VERSION "0.1.7"
+#define MXBFIX_VERSION "0.1.8"
 
 /* ---- global paths and game identity (util.c) ---- */
 extern wchar_t  g_save_dir[MAX_PATH];     /* the game's save path, Documents\PiBoSo\MX Bikes\ (trailing backslash) */

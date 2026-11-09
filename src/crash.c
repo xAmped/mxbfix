@@ -20,6 +20,8 @@
 #include "fixes.h"
 #include "json.h"
 #include "known.h"
+#include "mxbmrp3.h"
+#include "alive.h"
 #include "batches.h"
 #include <psapi.h>
 #include <dbghelp.h>
@@ -35,7 +37,16 @@ static MiniDumpWriteDump_t          s_minidump;
 static volatile LONG                s_in_crash;
 static volatile LONG                s_shut_down;      /* after Shutdown: only pass crashes on */
 static volatile LONG                s_dump_stuck;     /* the dump worker didn't finish in time */
+
+int crash_in_progress(void) { return s_in_crash != 0; }
+
+/* One owner at a time for DbgHelp (MiniDumpWriteDump must not run on two threads at once): every caller that writes a
+ * dump claims it first. A dump that timed out keeps it for good. */
+static volatile LONG s_dbg_busy;
+int  crash_dbghelp_claim(void) { return InterlockedCompareExchange(&s_dbg_busy, 1, 0) == 0; }
+void crash_dbghelp_release(void) { InterlockedExchange(&s_dbg_busy, 0); }
 static int                          s_write_dumps;
+
 static wchar_t                      s_lock_path[MAX_PATH];
 
 /* ======================================================================== */
@@ -126,6 +137,7 @@ static int write_file_atomic(const wchar_t *dir, const char *id, const char *ext
     return MoveFileExW(tmp, fin, MOVEFILE_REPLACE_EXISTING) != 0;
 }
 
+
 static void pending_dir(wchar_t *out)
 {
     path_join(out, MAX_PATH, g_base_dir, L"reports\\pending\\");
@@ -197,6 +209,7 @@ void crash_session_update(void)
     lock_set(L"updated_utc", now);
 }
 
+
 void crash_session_end(void)
 {
     DeleteFileW(s_lock_path);
@@ -250,49 +263,40 @@ static uint64_t parse_hex(const char *s)
     return v;
 }
 
-/* Find the newest "Application Error" event (ID 1000) for mxbikes.exe with this pid
- * and, if known, this process creation time (FILETIME). PIDs get reused; the
- * creation time makes the match unique. 1 s tolerance for rounding. */
-static void find_windows_crash_event(unsigned long pid, uint64_t created, win_event_t *ev)
+/* Find the newest event from `provider` with this ID for mxbikes.exe with this pid and, if known, this process creation
+ * time (FILETIME, in the field `created_name`). PIDs get reused; the creation time makes the match unique. 1 s tolerance
+ * for rounding. On a match the event's XML is left in s_evxml and its time in `time` ("YYYY-MM-DDTHH:MM:SSZ"). */
+static wchar_t s_evxml[16384];
+static int find_event(const wchar_t *query, const wchar_t *created_name, unsigned long pid, uint64_t created, char *time, int tcap)
 {
-    memset(ev, 0, sizeof *ev);
-    EVT_HANDLE q = EvtQuery(NULL, L"Application",
-                            L"*[System[Provider[@Name='Application Error'] and (EventID=1000) and "
-                            L"TimeCreated[timediff(@SystemTime) <= 1209600000]]]",
-                            EvtQueryChannelPath | EvtQueryReverseDirection);
-    if (!q) return;
-    wchar_t pidhex[24];
-    wsprintfW(pidhex, L"0x%lx", pid);
-    static wchar_t xml[16384];
+    int found = 0;
+    EVT_HANDLE q = EvtQuery(NULL, L"Application", query, EvtQueryChannelPath | EvtQueryReverseDirection);
+    if (!q) return 0;
+    char want[24];
+    wsprintfA(want, "0x%lx", pid);
     EVT_HANDLE evs[16];
     DWORD got = 0;
     int scanned = 0;
-    while (!ev->found && scanned < 200 && EvtNext(q, 16, evs, 2000, 0, &got)) {
+    while (!found && scanned < 200 && EvtNext(q, 16, evs, 2000, 0, &got)) {
         for (DWORD i = 0; i < got; i++) {
             DWORD used = 0, props = 0;
-            if (!ev->found && EvtRender(NULL, evs[i], EvtRenderEventXml, sizeof xml - 2, xml, &used, &props)) {
+            if (!found && EvtRender(NULL, evs[i], EvtRenderEventXml, sizeof s_evxml - 2, s_evxml, &used, &props)) {
                 char app[64], p[24];
-                if (xml_data(xml, L"AppName", app, sizeof app) && !lstrcmpiA(app, "mxbikes.exe") &&
-                    xml_data(xml, L"ProcessId", p, sizeof p)) {
-                    char want[24];
-                    WideCharToMultiByte(CP_UTF8, 0, pidhex, -1, want, sizeof want, NULL, NULL);
+                if (xml_data(s_evxml, L"AppName", app, sizeof app) && !lstrcmpiA(app, "mxbikes.exe") &&
+                    xml_data(s_evxml, L"ProcessId", p, sizeof p)) {
                     char ct[40] = "";
-                    uint64_t evc = xml_data(xml, L"ProcessCreationTime", ct, sizeof ct) ? parse_hex(ct) : 0;
+                    uint64_t evc = xml_data(s_evxml, created_name, ct, sizeof ct) ? parse_hex(ct) : 0;
                     uint64_t diff = evc > created ? evc - created : created - evc;
-                    int time_ok = !created || !evc || diff < 10000000ull;
+                    int time_ok = !created || (evc && diff < 10000000ull);   /* known start time: the event must carry the same */
                     if (!lstrcmpiA(p, want) && time_ok) {
-                        ev->found = 1;
-                        xml_data(xml, L"ModuleName", ev->module, sizeof ev->module);
-                        xml_data(xml, L"FaultingOffset", ev->offset, sizeof ev->offset);
-                        xml_data(xml, L"ExceptionCode", ev->code, sizeof ev->code);
-                        norm_hex(ev->offset);
-                        norm_hex(ev->code);
-                        const wchar_t *tc = wcsstr(xml, L"SystemTime='");
-                        if (tc) {
-                            int n = WideCharToMultiByte(CP_UTF8, 0, tc + 12, 19, ev->time, sizeof ev->time - 2, NULL, NULL);
+                        found = 1;
+                        time[0] = 0;
+                        const wchar_t *tc = wcsstr(s_evxml, L"SystemTime='");
+                        if (tc && tcap > 21) {
+                            int n = WideCharToMultiByte(CP_UTF8, 0, tc + 12, 19, time, tcap - 2, NULL, NULL);
                             if (n < 0) n = 0;
-                            ev->time[n] = 'Z';            /* keep "YYYY-MM-DDTHH:MM:SS" + Z */
-                            ev->time[n + 1] = 0;
+                            time[n] = 'Z';                /* keep "YYYY-MM-DDTHH:MM:SS" + Z */
+                            time[n + 1] = 0;
                         }
                     }
                 }
@@ -302,6 +306,43 @@ static void find_windows_crash_event(unsigned long pid, uint64_t created, win_ev
         }
     }
     EvtClose(q);
+    return found;
+}
+
+/* "Application Error" (ID 1000): Windows' record of a crash. */
+static void find_windows_crash_event(unsigned long pid, uint64_t created, win_event_t *ev)
+{
+    memset(ev, 0, sizeof *ev);
+    if (!find_event(L"*[System[Provider[@Name='Application Error'] and (EventID=1000) and "
+                    L"TimeCreated[timediff(@SystemTime) <= 1209600000]]]", L"ProcessCreationTime", pid, created, ev->time, sizeof ev->time))
+        return;
+    ev->found = 1;
+    xml_data(s_evxml, L"ModuleName", ev->module, sizeof ev->module);
+    xml_data(s_evxml, L"FaultingOffset", ev->offset, sizeof ev->offset);
+    xml_data(s_evxml, L"ExceptionCode", ev->code, sizeof ev->code);
+    norm_hex(ev->offset);
+    norm_hex(ev->code);
+}
+
+/* "Application Hang" (ID 1002): Windows saw the game stop responding and it was then closed. */
+typedef struct {
+    int  found;
+    char time[40], hang_type[32];
+} hang_event_t;
+/* Its TerminationTime isn't used: its unit isn't documented and doesn't match a measured freeze (one that lasted about
+ * 6 minutes is recorded as 141). The event is evidence the game stopped responding; the length comes
+ * from our own record. */
+
+static void find_windows_hang_event(unsigned long pid, uint64_t created, hang_event_t *ev)
+{
+    memset(ev, 0, sizeof *ev);
+    if (!find_event(L"*[System[Provider[@Name='Application Hang'] and (EventID=1002) and "
+                    L"TimeCreated[timediff(@SystemTime) <= 1209600000]]]", L"StartTime", pid, created, ev->time, sizeof ev->time))
+        return;
+    ev->found = 1;
+    xml_data(s_evxml, L"HangType", ev->hang_type, sizeof ev->hang_type);
+    for (char *p = ev->hang_type; *p; p++)                /* a word from Windows; keep it to plain characters */
+        if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == ' ')) *p = '_';
 }
 
 static char s_json[512 * 1024];
@@ -321,21 +362,53 @@ void crash_check_previous_session(void)
     make_dirs();
     path_join(s_lock_path, MAX_PATH, g_base_dir, L"session.lock");
     path_join(s_marker_path, MAX_PATH, g_base_dir, L"session.crashed");
-    if (GetFileAttributesW(s_lock_path) == INVALID_FILE_ATTRIBUTES) { DeleteFileW(s_marker_path); return; }
+    if (GetFileAttributesW(s_lock_path) == INVALID_FILE_ATTRIBUTES) {
+        DeleteFileW(s_marker_path);
+        return;
+    }
 
     char crashed[8], pidtxt[24], created[40];
     lock_get(L"crashed", crashed, sizeof crashed);
     lock_get(L"pid", pidtxt, sizeof pidtxt);
     lock_get(L"created", created, sizeof created);
-    if (GetFileAttributesW(s_marker_path) != INVALID_FILE_ATTRIBUTES || crashed[0] == '1') {
-        log_msg("previous session crashed and was already reported");
-        return;
-    }
     unsigned long pid = 0;
     for (const char *p = pidtxt; *p >= '0' && *p <= '9'; p++) pid = pid * 10 + (unsigned long)(*p - '0');
+    mxbmrp3_match_t mx;
+    mxbmrp3_find(pid, parse_hex(created), &mx);
+    if (GetFileAttributesW(s_marker_path) != INVALID_FILE_ATTRIBUTES || crashed[0] == '1') {
+        log_msg("previous session crashed and was already reported");
+        mxbmrp3_annotate_reports(pid, parse_hex(created), &mx);
+        alive_info_t gone;
+        alive_read_previous(pid, parse_hex(created), &gone);   /* not needed: the crash has its report */
+        return;
+    }
+    int promoted = 0;
+    mxbmrp3_annotate_reports(pid, parse_hex(created), &mx);   /* first-chance reports kept from that session */
 
     win_event_t ev;
     find_windows_crash_event(pid, parse_hex(created), &ev);
+    hang_event_t hang;
+    find_windows_hang_event(pid, parse_hex(created), &hang);
+    alive_info_t al;
+    alive_read_previous(pid, parse_hex(created), &al);
+    int froze = hang.found || (al.found && al.hung);
+    long froze_s = al.found && al.hung && al.hung_s >= 0 && al.hung_s < 7 * 24 * 3600 ? (long)al.hung_s : -1;
+    char summary[300];
+    if (ev.found)
+        lstrcpyA(summary, "The game crashed in a way that skipped the plugin's crash handler; details come from Windows' own crash record.");
+    else if (mx.details && !promoted)
+        lstrcpyA(summary, "The game crashed in a way that skipped the plugin's crash handler; details come from mxbmrp3's crash record.");
+    else if (froze && froze_s >= 0)
+        wsprintfA(summary, "The game froze: Windows saw it stop responding for at least %ld s before it was closed.", froze_s);
+    else if (froze)
+        lstrcpyA(summary, "The game froze: Windows saw it stop responding before it was closed.");
+    else if (al.found && al.game_quiet_s >= 0 && al.game_quiet_s <= 4)
+        lstrcpyA(summary, "The game ended suddenly while running normally, with no crash record: killed, a crash past every handler, or power loss.");
+    else if (al.found && al.game_quiet_s > 4)
+        wsprintfA(summary, "The game stopped calling the plugin %ld s before it ended, without Windows seeing it hang (menus, loading or a "
+                           "background stall), and left no crash record.", (long)al.game_quiet_s);
+    else
+        lstrcpyA(summary, "The game did not shut down cleanly and Windows recorded no crash for it (killed, hung, or power loss).");
 
     char id[96];
     make_report_id(id, "unclean");
@@ -348,12 +421,15 @@ void crash_check_previous_session(void)
         wsprintfA(sig, "%s+%s", ev.module, ev.offset);
         CharLowerA(sig);
         jw_str(&w, "signature", sig);
+    } else if (mx.details && !promoted) {   /* a kept first-chance report already carries that crash: don't count it twice */
+        char sig[sizeof mx.fault];
+        lstrcpyA(sig, mx.fault);
+        CharLowerA(sig);
+        jw_str(&w, "signature", sig);
     } else {
         jw_str(&w, "signature", "unclean-exit");
     }
-    jw_str(&w, "summary",
-           ev.found ? "The game crashed in a way that skipped the plugin's crash handler; details come from Windows' own crash record."
-                    : "The game did not shut down cleanly and Windows recorded no crash for it (killed, hung, or power loss).");
+    jw_str(&w, "summary", summary);
 
     jw_obj(&w, "previous_session");
     static const wchar_t *keys[] = {L"pid", L"created", L"started_utc", L"updated_utc", L"build", L"track", L"track_id", L"bike",
@@ -375,6 +451,21 @@ void crash_check_previous_session(void)
         jw_str(&w, "time_utc", ev.time);
     }
     jw_end_obj(&w);
+    if (mx.found) mxbmrp3_write(&w, &mx, 0, NULL, 1);
+    jw_obj(&w, "freeze");
+    jw_bool(&w, "froze", froze);
+    jw_bool(&w, "record", al.found);              /* our 2-second record from that process */
+    if (al.found) {
+        jw_i64(&w, "game_quiet_s", al.game_quiet_s);   /* the game hadn't called the plugin for this long when it last ran */
+        jw_bool(&w, "hung_at_end", al.hung);
+        if (al.hung) jw_i64(&w, "hung_s", al.hung_s);
+    }
+    jw_bool(&w, "windows_hang_event", hang.found);
+    if (hang.found) {
+        if (hang.hang_type[0]) jw_str(&w, "hang_type", hang.hang_type);
+        jw_str(&w, "time_utc", hang.time);
+    }
+    jw_end_obj(&w);
     write_env(&w);
     /* No "fixes": this runs before this session's fixes load, and the previous session's state isn't known. */
     jw_end_obj(&w);
@@ -382,7 +473,9 @@ void crash_check_previous_session(void)
     wchar_t dir[MAX_PATH];
     pending_dir(dir);
     if (!w.overflow && write_file_atomic(dir, id, ".json", s_json, w.len))
-        log_msg("previous session ended uncleanly (pid %lu, windows event %s): wrote %s.json", pid, ev.found ? "found" : "not found", id);
+        log_msg("previous session ended uncleanly (pid %lu, windows event %s%s%s%ls): wrote %s.json", pid, ev.found ? "found" : "not found",
+                froze ? ", it froze" : al.found ? ", no freeze seen" : ", no freeze record", mx.found ? ", mxbmrp3 crash log " : "",
+                mx.found ? mx.name : L"", id);
     else
         log_msg("previous session ended uncleanly but writing the report failed");
 }
@@ -609,7 +702,7 @@ static int null_dump_field(char *p, size_t n)
     return 0;
 }
 
-static void write_crash_report(EXCEPTION_POINTERS *ep)
+static int write_crash_report(EXCEPTION_POINTERS *ep)
 {
     EXCEPTION_RECORD *rec = ep->ExceptionRecord;
     CONTEXT *ctx = ep->ContextRecord;
@@ -715,6 +808,9 @@ static void write_crash_report(EXCEPTION_POINTERS *ep)
             diag(&w, "null_pointer", "Memory access near address zero: the game used an object that does not exist (null pointer).");
         else if (target >= 0xFFFFFFFF80000000ull)
             diag(&w, "sign_extended_32bit", "The address is a 32-bit number sign-extended to 64 bits: a value was stored in 32 bits and used as a pointer.");
+        else if (target >= 0xFFFF800000000000ull)
+            diag(&w, "kernel_address", "The address is in Windows' own (kernel) memory, which the game can't use: usually a large negative "
+                                       "offset, such as a NaN turned into a table index.");
         else if (target > 0x00007FFFFFFFFFFFull)
             diag(&w, "non_canonical_address", "The address is not a valid user-mode address: garbage was used as a pointer or index.");
         else if (target < 0x100000000ull && !is_committed(target)) {
@@ -878,7 +974,8 @@ static void write_crash_report(EXCEPTION_POINTERS *ep)
     jw_end_arr(&w);
 
     char dumpname[128] = "";
-    if (s_write_dumps && s_minidump) { lstrcpyA(dumpname, id); lstrcatA(dumpname, ".dmp"); }
+    int dbg_owned = s_write_dumps && s_minidump && !s_dump_stuck && crash_dbghelp_claim();
+    if (dbg_owned) { lstrcpyA(dumpname, id); lstrcatA(dumpname, ".dmp"); }
     size_t dump_at = w.len;                  /* where "dump_file" starts, to null it if the dump fails */
     jw_str(&w, "dump_file", dumpname[0] ? dumpname : NULL);
     size_t dump_end = w.len;
@@ -918,15 +1015,20 @@ static void write_crash_report(EXCEPTION_POINTERS *ep)
                 write_file_atomic(dir, id, ".json", s_json, w.len);
         }
     }
+    if (dbg_owned && !s_dump_stuck) crash_dbghelp_release();
+    return full_written;
 }
+
 
 static LONG WINAPI unhandled_filter(EXCEPTION_POINTERS *ep)
 {
     /* After Shutdown the log and session files are closed: only pass the crash on. (The DLL is pinned, so a
      * filter that saved us as its predecessor can still call here safely.) */
     if (s_shut_down) return s_prev_filter ? s_prev_filter(ep) : EXCEPTION_CONTINUE_SEARCH;
-    if (InterlockedExchange(&s_in_crash, 1) == 0) write_crash_report(ep);
-    else return EXCEPTION_CONTINUE_SEARCH;
+    if (InterlockedExchange(&s_in_crash, 1) == 0) {
+        int ok = write_crash_report(ep);
+        (void)ok;
+    } else return EXCEPTION_CONTINUE_SEARCH;
     /* If our dump is still being written (timed out), don't hand over to the previous filter: it may call
      * the same dump library, which must not be used by two threads at once. Windows takes over instead. */
     if (s_dump_stuck) return EXCEPTION_CONTINUE_SEARCH;
@@ -940,7 +1042,10 @@ static LONG CALLBACK vectored_handler(EXCEPTION_POINTERS *ep)
     case EXCEPTION_ILLEGAL_INSTRUCTION:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
-        return fixes_dispatch(ep);
+    {
+        LONG r = fixes_dispatch(ep);
+        return r;
+    }
     default:
         return EXCEPTION_CONTINUE_SEARCH;
     }
@@ -991,7 +1096,7 @@ typedef struct {
 
 void crash_cleanup_old_dumps(void)
 {
-    int keep = cfg_int("capture", "keep_dumps", 10);
+    int keep = cfg_int("capture", "keep_dumps", 3);
     if (keep < 0) keep = 0;               /* a bad setting must never become a negative index */
     if (keep > 256) keep = 256;
     wchar_t dir[MAX_PATH], pat[MAX_PATH];

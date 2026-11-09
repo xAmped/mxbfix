@@ -82,7 +82,40 @@ static int has_path(const char *s, size_t n)
     return 0;
 }
 
-/* The report without any "path" member, and with the install ID added. Works on the plugin's own JSON. */
+/* End of the JSON value starting at q (string, object, array, or a bare number/word), or n if it doesn't end. */
+static size_t skip_value(const char *in, size_t n, size_t q)
+{
+    if (q >= n) return n;
+    if (in[q] == '"') {
+        size_t v = q + 1;
+        while (v < n && in[v] != '"') v += in[v] == '\\' ? 2 : 1;
+        return v < n ? v + 1 : n;
+    }
+    if (in[q] == '{' || in[q] == '[') {
+        int depth = 0;
+        for (size_t v = q; v < n; v++) {
+            if (in[v] == '"') { v++; while (v < n && in[v] != '"') v += in[v] == '\\' ? 2 : 1; continue; }
+            if (in[v] == '{' || in[v] == '[') depth++;
+            else if ((in[v] == '}' || in[v] == ']') && --depth == 0) return v + 1;
+        }
+        return n;
+    }
+    size_t v = q;
+    while (v < n && in[v] != ',' && in[v] != '}' && in[v] != ']') v++;
+    return v;
+}
+
+/* Raw CPU values and code bytes at the crash stay in the local report: they could hold a fragment of whatever the game
+ * was handling. The diagnosis made from them is sent. */
+static int raw_member(const char *k, size_t len)
+{
+    static const char *RAW[] = {"\"registers\"", "\"xmm_low\"", "\"code_at_fault\"", "\"code_before_fault\""};
+    for (size_t i = 0; i < sizeof RAW / sizeof RAW[0]; i++)
+        if (len == strlen(RAW[i]) && !memcmp(k, RAW[i], len)) return 1;
+    return 0;
+}
+
+/* The report without any "path" member or raw CPU values, and with the install ID added. Works on the plugin's own JSON. */
 static size_t build_payload(const char *in, size_t n, char *out, size_t cap)
 {
     size_t o = 0, i = 0;
@@ -99,11 +132,12 @@ static size_t build_payload(const char *in, size_t n, char *out, size_t cap)
         while (colon < n && (in[colon] == ' ' || in[colon] == '\t' || in[colon] == '\r' || in[colon] == '\n')) colon++;
         size_t q = colon + 1;
         while (q < n && (in[q] == ' ' || in[q] == '\t' || in[q] == '\r' || in[q] == '\n')) q++;
-        if (e - i == 5 && !memcmp(in + i, "\"path\"", 6) && q < n && in[colon] == ':' && in[q] == '"') {
-            size_t v = q + 1;                              /* skip the value and one comma */
-            while (v < n && in[v] != '"') v += in[v] == '\\' ? 2 : 1;
+        int path = e - i == 5 && !memcmp(in + i, "\"path\"", 6) && q < n && in[q] == '"';
+        if ((path || raw_member(in + i, e - i + 1)) && q < n && in[colon] == ':') {
+            size_t v = skip_value(in, n, q);               /* skip the value and one comma */
             if (v >= n) return 0;
-            i = v + 1;
+            i = v;
+            while (i < n && (in[i] == ' ' || in[i] == '\t' || in[i] == '\r' || in[i] == '\n')) i++;
             if (i < n && in[i] == ',') i++;
             else {
                 while (o && (out[o - 1] == ' ' || out[o - 1] == '\t' || out[o - 1] == '\r' || out[o - 1] == '\n')) o--;

@@ -7,11 +7,14 @@ What's planned. No dates; things ship when they work.
 - Physics crash fix: keep confirming it in real races. Its first real catch was in November 2026: 2 crash values in
   one online session, with no crash.
 - Crash reports: see what new crash types show up now that reports can be sent.
+- Freezes: reports now say when the game froze. Next is finding out where it gets stuck.
+- The "Forest" crash: fixed for fence scrapes. It can also follow a very hard hit from another rider; a fix for that
+  is being tested.
 
 ## Next
 
-- More crash fixes: the four fixed so far cover about 65% of reported crashes. Next are the ones crash reports show
-  matter most, like crashes when leaving a session.
+- More crash fixes: the fixes so far cover about two thirds of reported crashes. Next is a second track-loading crash,
+  the largest one not fixed yet, then the ones crash reports show matter most.
 
 ## Looking into
 

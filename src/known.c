@@ -6,6 +6,8 @@ static const known_crash_t KNOWN[] = {
      "Render buffer write through a pointer cut to 32 bits (crashes right after riding out)"},
     {"physics-contact-nan", "mxbikes.exe", "410fbf0c41488d0416498bd6490fafd0", 0,
      "Physics contact blow-up: NaN turned into a table index"},
+    {"suspension-nan-lookup", "mxbikes.exe", "f30f109481e84f0000f30f108481ec4f", 0,
+     "Suspension table read with a NaN index (the bike's physics had already broken)"},
     {"session-teardown-null", "mxbikes.exe", "488b4910e8????????488b0cdfe8", 0,
      "Null pointer while leaving a session or connecting"},
     {"session-end-oob-read", "mxbikes.exe", "448b04908b83d4040000ffc84183c004", 0,

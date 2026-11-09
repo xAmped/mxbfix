@@ -118,7 +118,7 @@ fix_t fix_ground_nan_guard = {
  *
  * Because these events are rare and mxbfix.log only keeps two sessions, each event is also appended to
  * bad_positions.log (never wiped; appending stops at 1 MB) and counted in stats.ini [bad_positions]
- * (total, would_crash).
+ * (total; would_crash: prevented crashes, at most one per session and only with the guard on).
  *
  * Rider table +0xF4EE20, 50 slots of 0x5b24 bytes: +0x0 in use, +0xc race number,
  * +0x50b0 and +0x50c4 further in-use flags (the loop checks all three), position
@@ -215,7 +215,9 @@ void ground_watch_poll(void)
             s_episodes++;
             int crashes = f_nan(pos[0]) || f_nan(pos[2]);       /* x or z NaN: what reaches +0x1f1923 unguarded */
             s_pending_total++;
-            if (crashes) { s_pending_crash++; if (fix_ground_nan_guard.active) s_crash_session++; }
+            /* Counted as a prevented crash only with the guard on, and once per session: without it the first one
+             * would have ended the session, so later ones (often the same flickering rider) aren't extra crashes. */
+            if (crashes && fix_ground_nan_guard.active && !s_crash_session) { s_pending_crash++; s_crash_session++; }
             /* Ordinary episodes stop being listed at the cap (one flickering rider can make thousands); crash values
              * keep their own allowance, because they're the rare events worth a timestamp. Both are bounded. */
             int over = s_lines >= LOG_CAP;

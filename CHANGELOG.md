@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8
+
+- Fixed the "Forest" crash after scraping a fence with the handlebar (`mxbikes.exe+0x1a29ae`).
+- Freezes are now reported as freezes, with how long the game stopped responding, instead of just "didn't close properly".
+- CPU values from the moment of a crash stay on your PC; they're no longer sent.
+- Crashes prevented counts each crash once, and nothing for a fix you turned off.
+- Keeps the newest 3 crash dumps instead of 10 (about 60 MB each). Existing settings files keep their number.
+- Crash reports note when mxbmrp3 recorded the same crash.
+
 ## 0.1.7
 
 - The MXBFix page now opens on online servers too: press Esc and move the mouse.

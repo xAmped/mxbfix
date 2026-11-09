@@ -10,6 +10,8 @@ extern fix_t fix_trainer_series_lookup;
 extern fix_t fix_trainer_repair;
 extern fix_t fix_ground_nan_guard;
 extern fix_t fix_trainer_cleanup_reset;
+extern fix_t fix_fence_contact_nan;
+extern fix_t fix_suspension_nan_guard;
 
 
 static fix_t *ALL[] = {
@@ -18,6 +20,7 @@ static fix_t *ALL[] = {
     &fix_trainer_repair,
     &fix_ground_nan_guard,
     &fix_trainer_cleanup_reset,
+    &fix_fence_contact_nan,
 };
 #define NFIX ((int)(sizeof ALL / sizeof ALL[0]))
 
@@ -139,8 +142,9 @@ LONG fixes_dispatch(EXCEPTION_POINTERS *ep)
     for (int i = 0; i < NFIX; i++) {
         fix_t *f = ALL[i];
         if (!f->active || !f->on_exception) continue;
-        if (f->on_exception(f, ep)) {
-            InterlockedIncrement(&f->saves);
+        int r = f->on_exception(f, ep);
+        if (r) {
+            if (r != FIX_RECOVERED_SAME) InterlockedIncrement(&f->saves);
             return EXCEPTION_CONTINUE_EXECUTION;
         }
     }

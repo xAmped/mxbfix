@@ -16,7 +16,7 @@ const MAX_COUNT = 100;
 // own diagnosis, made from them on the player's PC, is kept.
 const KEEP = new Set(["schema", "kind", "id", "time_utc", "plugin", "game", "signature", "known", "exception", "diagnosis",
   "register_targets", "stack", "stack_scan", "context", "batches", "recent_events", "env", "fixes",
-  "modules", "truncated", "partial", "summary", "previous_session", "windows_event", "install_id"]);
+  "modules", "truncated", "partial", "summary", "previous_session", "windows_event", "install_id", "mxbmrp3", "freeze"]);
 const RAW_FIELDS = new Set(["registers", "xmm_low", "code_at_fault", "code_before_fault"]);
 
 // module+offset, or a bare address when the crash was outside any module. Nothing here can carry Markdown or a mention.
@@ -40,6 +40,32 @@ function scrub(v) {
   return v;
 }
 
+// The plugin's own fields for these two members, and nothing else: they're the newest, so check them exactly.
+const LOCATION = /^[a-z0-9_.\-() ]{1,80}\+0x[0-9a-f]{1,16}$/i;
+const isBool = (v) => typeof v === "boolean";
+const isInt = (v) => Number.isInteger(v) && Math.abs(v) <= 1e9;
+const MEMBER_FIELDS = {
+  mxbmrp3: {
+    crash_log: isBool, dump: isBool, same_fault: isBool, seconds_from_ours: isInt,
+    fault: (v) => typeof v === "string" && LOCATION.test(v),
+    code: (v) => typeof v === "string" && /^0x[0-9a-f]{1,8}$/i.test(v),
+    stack: (v) => Array.isArray(v) && v.length <= 16 && v.every((x) => typeof x === "string" && LOCATION.test(x)),
+  },
+  freeze: {
+    froze: isBool, record: isBool, hung_at_end: isBool, windows_hang_event: isBool,
+    game_quiet_s: isInt, hung_s: isInt, windows_hung_s: isInt,
+    hang_type: (v) => typeof v === "string" && /^[A-Za-z0-9 _]{1,32}$/.test(v),
+    time_utc: (v) => typeof v === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(v),
+  },
+};
+
+function pickFields(v, rules) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out = {};
+  for (const [k, ok] of Object.entries(rules)) if (k in v && ok(v[k])) out[k] = v[k];
+  return out;
+}
+
 export function issueWorthy(signature) {
   return ISSUE_WORTHY.test(signature);
 }
@@ -61,7 +87,16 @@ export function cleanReport(input) {
   if (typeof build !== "string" || !BUILD.test(build)) return { error: "build" };
 
   const body = {};
-  for (const key of Object.keys(input)) if (KEEP.has(key)) body[key] = scrub(input[key]);
+  for (const key of Object.keys(input)) {
+    if (!KEEP.has(key)) continue;
+    if (Object.hasOwn(MEMBER_FIELDS, key)) {
+      // Checked field by field (flat values and one short array), never walked: deep junk here can't cost a save.
+      const picked = pickFields(input[key], MEMBER_FIELDS[key]);
+      if (picked) body[key] = picked;
+    } else {
+      body[key] = scrub(input[key]);
+    }
+  }
   if (Array.isArray(body.modules)) {
     body.modules = body.modules.map((m) => ({ name: shortString(m?.name), base: m?.base, size: m?.size, timestamp: m?.timestamp }));
   } else {

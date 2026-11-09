@@ -48,6 +48,45 @@ test("unclean exits use the previous session's server", () => {
   assert.equal(cleanReport(r).report.server, "S2");
 });
 
+test("keeps the match to mxbmrp3's crash record, scrubbed like the rest", () => {
+  const r = good();
+  r.mxbmrp3 = { crash_log: true, dump: true, fault: "mxbikes.exe+0x1a29ae", stack: ["mxbikes.exe+0x1a29ae", "C:\\Users\\someone\\a.dll+0x1"] };
+  const mx = cleanReport(r).report.body.mxbmrp3;
+  assert.equal(mx.fault, "mxbikes.exe+0x1a29ae");
+  assert.equal(mx.stack, undefined, "a stack with anything but locations is dropped whole");
+});
+
+test("mxbmrp3 and freeze keep only the plugin's own fields", () => {
+  const r = good();
+  r.mxbmrp3 = { crash_log: true, fault: "mxbikes.exe+0x1a29ae", stack: ["mxbikes.exe+0x1"], rider: "someone", log_name: "mxbmrp3_crash_20261108_143507_1.log" };
+  r.freeze = { froze: true, hung_s: 42, hang_type: "Unknown", note: "someone", hung_at_end: "yes", time_utc: "2026-11-07T22:43:53Z" };
+  const b = cleanReport(r).report.body;
+  assert.deepEqual(b.mxbmrp3, { crash_log: true, fault: "mxbikes.exe+0x1a29ae", stack: ["mxbikes.exe+0x1"] });
+  assert.deepEqual(b.freeze, { froze: true, hung_s: 42, hang_type: "Unknown", time_utc: "2026-11-07T22:43:53Z" });
+  r.freeze = "froze";
+  assert.equal(cleanReport(r).report.body.freeze, undefined);
+});
+
+test("deeply nested junk in the new members is dropped, and the report is still kept", () => {
+  let deep = {};
+  for (let i = 0; i < 20000; i++) deep = { a: deep };
+  const r = good();
+  r.freeze = { froze: true, junk: deep };
+  r.mxbmrp3 = { crash_log: true, stack: [deep], fault: deep };
+  const { report, error } = cleanReport(r);
+  assert.equal(error, undefined);
+  assert.deepEqual(report.body.freeze, { froze: true });
+  assert.deepEqual(report.body.mxbmrp3, { crash_log: true });
+});
+
+test("keeps the freeze evidence of an unclean exit", () => {
+  const r = good();
+  r.kind = "unclean_exit";
+  r.signature = "unclean-exit";
+  r.freeze = { froze: true, record: true, game_quiet_s: 44, hung_at_end: true, hung_s: 42, windows_hang_event: true };
+  assert.deepEqual(cleanReport(r).report.body.freeze, r.freeze);
+});
+
 test("counts: only known fixes, sane numbers", () => {
   assert.deepEqual(cleanCounts({ schema: 1, counts: { "gate-vertex-pointer": 3, "ground-nan-guard": 0, other: 9 } }).counts, { "gate-vertex-pointer": 3 });
   assert.ok(cleanCounts({ schema: 1, counts: { "gate-vertex-pointer": -1 } }).error);
