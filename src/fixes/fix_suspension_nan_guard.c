@@ -1,5 +1,5 @@
 /*
- * suspension-nan-guard: the "Forest" crash, mxbikes.exe+0x1a29ae, when the bike's physics has already gone bad.
+ * suspension-nan-guard: a physics blow-up of the bike (crash at mxbikes.exe+0x1a29ae), when the bike's physics has already gone bad.
  *
  * The rear suspension update (+0x1a29e0) looks up a ratio in a 100-entry table with the leaf function +0x1a2970:
  *

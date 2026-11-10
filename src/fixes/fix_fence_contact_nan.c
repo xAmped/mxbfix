@@ -1,5 +1,6 @@
 /*
- * fence-contact-nan: the "Forest" crash, mxbikes.exe+0x1a29ae, after scraping a fence.
+ * fence-contact-nan: the fence cause of a physics blow-up of the bike (crash at mxbikes.exe+0x1a29ae), usually a fallen bike
+ * resting against a thin fence.
  *
  * The game's sphere-vs-track-mesh collision (OPCODE sphere-triangle, the routine from +0x2d75b0) works out how deep a
  * small sphere sits in a triangle with

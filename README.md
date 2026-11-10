@@ -9,8 +9,8 @@
 Stops the most common MX Bikes crashes.
 
 mxbfix is a plugin for **MX Bikes Beta 21e**. It fixes five bugs in the game. Four of them cover about 65% of the crash reports in
-[mxbmrp3's survey](https://github.com/thomas4f/mxbmrp3/blob/main/usage_survey/REPORT.md); the fifth stops the "Forest"
-crash when it starts at a fence (that crash is about 5% of reports, not all of them from fences).
+[mxbmrp3's survey](https://github.com/thomas4f/mxbmrp3/blob/main/usage_survey/REPORT.md); the fifth stops the most common
+cause of a physics blow-up of your own bike: a fallen bike resting against a thin fence.
 If the game still crashes, it saves a report of what happened.
 
 ![The MXBFix page in the pause menu](media/page.png)
@@ -82,9 +82,9 @@ unfixed game.
 |---|---|---|
 | Gate crash | A few seconds after riding out of the pits | The game lost half of a memory address while setting up graphics |
 | Track loading crash | While a track loads | Damaged trainer (ghost lap) files made the game read garbage |
-| Physics crash | While racing | A rider's broken (NaN) position made the game read far outside the map |
+| Physics: broken rider position | While racing | A rider's position became invalid (NaN), and the game read far outside the map |
 | Cancel crash | Cancelling a server join after riding offline | The game cleaned up your trainer twice |
-| Fence crash | After scraping a fence with the handlebar | A collision with a paper-thin fence divided 0 by 0 and broke the bike's physics |
+| Physics: bike blow-up at a fence | Usually after a fall, with the bike lying against a thin fence | The collision with the paper-thin fence divided 0 by 0, and the bike's physics broke in one step |
 
 What's planned next: [ROADMAP.md](ROADMAP.md). Found a security problem? See [SECURITY.md](SECURITY.md).
 
@@ -132,7 +132,7 @@ memory ends up where the series name goes. At startup the plugin checks every tr
 `profiles\*\trainers\` and zeroes that junk (a valid series name, up to 31 characters, is kept). Each changed file
 is backed up first.
 
-**`ground-nan-guard`**, crash at `mxbikes.exe+0x1f1923`. Sometimes a rider's position becomes NaN (not a
+**`ground-nan-guard`**, physics: broken rider position, crash at `mxbikes.exe+0x1f1923`. Sometimes a rider's position becomes NaN (not a
 number); why is still being researched. Three terrain lookups (`+0x1f1720`, `+0x1f11a0`, `+0x1f1d10`) check "outside the map" with
 `comiss` + `ja`, which NaN passes, and the height lookup then reads gigabytes outside its grid. The fix flips one
 check per coordinate to `comiss` + `jb`, so NaN takes the game's existing "off the map" path. Every ordinary
@@ -144,13 +144,14 @@ never clears its "trainer loaded" flag. Online events don't load a trainer, so a
 server join runs the cleanup again on objects that are already gone. The fix clears the flag as the cleanup
 starts, and makes destroying an already-destroyed object do nothing.
 
-**`fence-contact-nan`**, crash at `mxbikes.exe+0x1a29ae` (the "Forest" crash). The sphere-vs-track collision
+**`fence-contact-nan`**, physics: bike blow-up at a fence, crash at `mxbikes.exe+0x1a29ae`. The sphere-vs-track collision
 (`+0x2d75b0`) divides by the distance between a sphere's centre and the closest point on a triangle, then skips the
 triangle if the result is negative with `comiss` + `ja`. When a small sphere such as the handlebar end sits exactly on
 a zero-thickness fence, that's 0/0 = NaN, which the check lets through: the contact reaches the physics with a NaN
 depth and breaks the whole bike, and the next suspension update reads far outside its table. The fix swaps the
 comparison to `comiss` + `jb` at `+0x2d7dce`, so NaN is skipped like a negative value. Every ordinary value gives the
-same result as before.
+same result as before. A bike blow-up can have other causes too (a very hard hit from
+another rider); those aren't covered yet.
 
 Verified in game: the gate and cancel crashes happened without the fix and not with it, doing the same thing; a
 trainer file that had crashed the game loaded fine with the fix, which logged the junk it handled. The physics

@@ -2,7 +2,7 @@
 
 ## 0.1.8
 
-- Fixed the "Forest" crash after scraping a fence with the handlebar (`mxbikes.exe+0x1a29ae`).
+- Fixed a physics blow-up of your bike when it touches a thin fence, mostly after a fall (`mxbikes.exe+0x1a29ae`).
 - Freezes are now reported as freezes, with how long the game stopped responding, instead of just "didn't close properly".
 - CPU values from the moment of a crash stay on your PC; they're no longer sent.
 - Crashes prevented counts each crash once, and nothing for a fix you turned off.

@@ -4,12 +4,12 @@ What's planned. No dates; things ship when they work.
 
 ## Now
 
-- Physics crash fix: keep confirming it in real races. Its first real catch was in November 2026: 2 crash values in
+- Physics, broken rider position: keep confirming the fix in real races. Its first real catch was in November 2026: 2 crash values in
   one online session, with no crash.
 - Crash reports: see what new crash types show up now that reports can be sent.
 - Freezes: reports now say when the game froze. Next is finding out where it gets stuck.
-- The "Forest" crash: fixed for fence scrapes. It can also follow a very hard hit from another rider; a fix for that
-  is being tested.
+- Physics, bike blow-ups: the most common cause, a fallen bike against a thin fence, is fixed and confirmed in game. A blow-up
+  can also follow a very hard hit from another rider; that cause is being looked into.
 
 ## Next
 
@@ -19,7 +19,7 @@ What's planned. No dates; things ship when they work.
 ## Looking into
 
 - Getting stuck on "syncing" when rejoining a server after a crash.
-- Why rider positions sometimes go bad (the cause behind the physics crash).
+- Why rider positions sometimes go bad (the cause behind the broken-rider-position crash).
 
 ## Help
 
